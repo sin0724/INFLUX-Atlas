@@ -276,20 +276,5 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       </div>
     )
   }
-} catch (error) {
-    console.error('Dashboard error:', error)
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <Navbar />
-        <div className="container mx-auto px-4 py-8">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <h2 className="text-lg font-semibold text-red-800 mb-2">오류 발생</h2>
-            <p className="text-red-600">데이터를 불러오는 중 오류가 발생했습니다. Railway 로그를 확인하세요.</p>
-            <p className="text-sm text-red-500 mt-2">오류: {error instanceof Error ? error.message : 'Unknown error'}</p>
-          </div>
-        </div>
-      </div>
-    )
-  }
 }
 
