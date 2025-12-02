@@ -28,8 +28,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const pageSize = 10
   const offset = (page - 1) * pageSize
 
-  // Get KPIs
-  const [totalCount] = await db.select({ count: count() }).from(influencers)
+  try {
+    // Get KPIs
+    const [totalCount] = await db.select({ count: count() }).from(influencers)
   
   const platformCounts = await db
     .select({
@@ -69,10 +70,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     db.select({ count: count() }).from(influencers)
   ])
 
-  const totalPages = Math.ceil(totalInfluencers[0].count / pageSize)
+    const totalPages = Math.ceil(totalInfluencers[0].count / pageSize)
 
-  return (
-    <div className="min-h-screen bg-gray-50">
+    return (
+      <div className="min-h-screen bg-gray-50">
       <Navbar />
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-8">대시보드</h1>
@@ -259,6 +260,36 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         </Card>
       </div>
     </div>
-  )
+    )
+  } catch (error) {
+    console.error('Dashboard error:', error)
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navbar />
+        <div className="container mx-auto px-4 py-8">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <h2 className="text-lg font-semibold text-red-800 mb-2">오류 발생</h2>
+            <p className="text-red-600">데이터를 불러오는 중 오류가 발생했습니다. Railway 로그를 확인하세요.</p>
+            <p className="text-sm text-red-500 mt-2">오류: {error instanceof Error ? error.message : 'Unknown error'}</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+} catch (error) {
+    console.error('Dashboard error:', error)
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navbar />
+        <div className="container mx-auto px-4 py-8">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <h2 className="text-lg font-semibold text-red-800 mb-2">오류 발생</h2>
+            <p className="text-red-600">데이터를 불러오는 중 오류가 발생했습니다. Railway 로그를 확인하세요.</p>
+            <p className="text-sm text-red-500 mt-2">오류: {error instanceof Error ? error.message : 'Unknown error'}</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 }
 
