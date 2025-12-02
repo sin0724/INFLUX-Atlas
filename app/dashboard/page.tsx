@@ -263,14 +263,40 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     )
   } catch (error) {
     console.error('Dashboard error:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const isDbError = errorMessage.includes('Tenant or user not found') || errorMessage.includes('DATABASE_URL')
+    
     return (
       <div className="min-h-screen bg-gray-50">
         <Navbar />
         <div className="container mx-auto px-4 py-8">
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <h2 className="text-lg font-semibold text-red-800 mb-2">오류 발생</h2>
-            <p className="text-red-600">데이터를 불러오는 중 오류가 발생했습니다. Railway 로그를 확인하세요.</p>
-            <p className="text-sm text-red-500 mt-2">오류: {error instanceof Error ? error.message : 'Unknown error'}</p>
+            <h2 className="text-lg font-semibold text-red-800 mb-2">데이터베이스 연결 오류</h2>
+            {isDbError ? (
+              <>
+                <p className="text-red-600 mb-4">데이터베이스 연결에 실패했습니다.</p>
+                <div className="bg-white rounded p-4 mb-4">
+                  <h3 className="font-semibold mb-2">확인 사항:</h3>
+                  <ul className="list-disc list-inside space-y-1 text-sm">
+                    <li>Supabase 프로젝트가 활성화 상태인지 확인</li>
+                    <li>Railway Variables에서 DATABASE_URL이 올바르게 설정되었는지 확인</li>
+                    <li>비밀번호 특수문자가 URL 인코딩되었는지 확인 (예: ! → %21)</li>
+                    <li>Supabase 대시보드에서 최신 연결 문자열 확인</li>
+                  </ul>
+                </div>
+                <p className="text-sm text-red-500 mt-2">
+                  <strong>오류:</strong> {errorMessage}
+                </p>
+                <p className="text-xs text-gray-500 mt-2">
+                  연결 테스트: <code>/api/debug/db-connection</code>
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-red-600">데이터를 불러오는 중 오류가 발생했습니다.</p>
+                <p className="text-sm text-red-500 mt-2">오류: {errorMessage}</p>
+              </>
+            )}
           </div>
         </div>
       </div>
