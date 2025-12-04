@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { getInfluencers } from '@/lib/repositories/influencers'
+import * as XLSX from 'xlsx'
 
 export async function GET(request: NextRequest) {
   try {
@@ -42,29 +43,29 @@ export async function GET(request: NextRequest) {
     const sort = { field: 'created_at' as const, direction: 'desc' as const }
     const result = await getInfluencers(filters, sort, 1, 10000)
 
-    // Convert to CSV
+    // Convert to Excel
     const headers = [
-      'Name',
-      'Platform',
-      'Handle',
-      'Profile URL',
-      'Country',
-      'City',
-      'Languages',
-      'Followers',
-      'Avg Likes',
-      'Avg Comments',
-      'Engagement Rate',
-      'Main Category',
-      'Sub Categories',
-      'Collab Types',
-      'Base Price',
-      'Contact Email',
-      'Contact DM',
-      'Status',
-      'Tags',
-      'Notes Summary',
-      'Created At',
+      '이름',
+      '플랫폼',
+      '핸들',
+      '프로필 URL',
+      '국가',
+      '도시',
+      '언어',
+      '팔로워',
+      '평균 좋아요',
+      '평균 댓글',
+      '참여율',
+      '주요 카테고리',
+      '하위 카테고리',
+      '협업 유형',
+      '기본 가격',
+      '연락처 이메일',
+      '연락처 DM',
+      '상태',
+      '태그',
+      '메모 요약',
+      '생성일',
     ]
 
     const rows = result.data.map((inf) => [
@@ -75,9 +76,9 @@ export async function GET(request: NextRequest) {
       inf.country || '',
       inf.city || '',
       inf.languages?.join('; ') || '',
-      inf.followers?.toString() || '',
-      inf.avgLikes?.toString() || '',
-      inf.avgComments?.toString() || '',
+      inf.followers || '',
+      inf.avgLikes || '',
+      inf.avgComments || '',
       inf.engagementRate || '',
       inf.mainCategory || '',
       inf.subCategories?.join('; ') || '',
@@ -91,17 +92,20 @@ export async function GET(request: NextRequest) {
       new Date(inf.createdAt).toISOString(),
     ])
 
-    const csvContent = [
-      headers.join(','),
-      ...rows.map((row) =>
-        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
-      ),
-    ].join('\n')
+    // Create workbook
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows])
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, '인플루언서')
 
-    return new NextResponse(csvContent, {
+    // Generate Excel file buffer
+    const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
+
+    const fileName = `인플루언서_${new Date().toISOString().split('T')[0]}.xlsx`
+
+    return new NextResponse(excelBuffer, {
       headers: {
-        'Content-Type': 'text/csv',
-        'Content-Disposition': `attachment; filename="influencers-${new Date().toISOString().split('T')[0]}.csv"`,
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="${encodeURIComponent(fileName)}"`,
       },
     })
   } catch (error) {

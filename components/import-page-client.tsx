@@ -3,7 +3,10 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Upload, Download } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Upload, Download, Plus } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import Papa from 'papaparse'
 
@@ -23,6 +26,33 @@ export function ImportPageClient() {
     errors: number
     errorRows: any[]
   } | null>(null)
+  
+  // Single entry form state
+  const [showSingleForm, setShowSingleForm] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [formData, setFormData] = useState({
+    name: '',
+    platform: 'instagram',
+    handle: '',
+    profileUrl: '',
+    country: '',
+    city: '',
+    languages: '',
+    followers: '',
+    avgLikes: '',
+    avgComments: '',
+    avgShares: '',
+    engagementRate: '',
+    mainCategory: '',
+    subCategories: '',
+    collabTypes: '',
+    basePriceText: '',
+    contactEmail: '',
+    contactDm: '',
+    status: 'candidate',
+    tags: '',
+    notesSummary: '',
+  })
 
   // 간소화된 필드 정의
   const simplifiedFields = [
@@ -205,96 +235,364 @@ export function ImportPageClient() {
     window.URL.revokeObjectURL(url)
   }
 
+  const handleSingleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!formData.name || !formData.platform) {
+      alert('이름과 플랫폼은 필수 항목입니다')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/influencers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      })
+
+      if (res.ok) {
+        alert('인플루언서가 성공적으로 등록되었습니다')
+        // Reset form
+        setFormData({
+          name: '',
+          platform: 'instagram',
+          handle: '',
+          profileUrl: '',
+          country: '',
+          city: '',
+          languages: '',
+          followers: '',
+          avgLikes: '',
+          avgComments: '',
+          avgShares: '',
+          engagementRate: '',
+          mainCategory: '',
+          subCategories: '',
+          collabTypes: '',
+          basePriceText: '',
+          contactEmail: '',
+          contactDm: '',
+          status: 'candidate',
+          tags: '',
+          notesSummary: '',
+        })
+        setShowSingleForm(false)
+        // Optionally redirect to influencers page
+        window.location.href = '/influencers'
+      } else {
+        const data = await res.json()
+        alert(data.error || '등록에 실패했습니다')
+      }
+    } catch (error) {
+      console.error('Error creating influencer:', error)
+      alert('등록 중 오류가 발생했습니다')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-8">인플루언서 데이터 임포트</h1>
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-3xl font-bold">인플루언서 데이터 임포트</h1>
+          <Button
+            onClick={() => setShowSingleForm(!showSingleForm)}
+            variant={showSingleForm ? 'outline' : 'default'}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            {showSingleForm ? '파일 임포트로 전환' : '1명씩 등록'}
+          </Button>
+        </div>
 
         <div className="space-y-6">
-          {/* Step 1: Download Template */}
-          <Card>
-            <CardHeader>
-              <CardTitle>1단계: 템플릿 다운로드</CardTitle>
-              <CardDescription>
-                엑셀 양식을 다운로드하여 인플루언서 정보를 입력하세요
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button onClick={downloadTemplate} variant="outline" disabled={importing}>
-                <Download className="h-4 w-4 mr-2" />
-                템플릿 다운로드
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Step 2: Upload File */}
-          <Card>
-            <CardHeader>
-              <CardTitle>2단계: 파일 업로드</CardTitle>
-              <CardDescription>
-                작성한 Excel (.xlsx) 또는 CSV 파일을 업로드하면 자동으로 등록됩니다
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center space-x-4">
-                <label 
-                  htmlFor="file-upload" 
-                  className={`cursor-pointer inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 ${importing ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  <input
-                    id="file-upload"
-                    type="file"
-                    accept=".csv,.xlsx,.xls"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                    disabled={importing}
-                  />
-                  <Upload className="h-4 w-4 mr-2" />
-                  {importing ? '임포트 중...' : '파일 선택'}
-                </label>
-                {file && <span className="text-sm text-muted-foreground">{file.name}</span>}
-              </div>
-              {importing && (
-                <p className="text-sm text-muted-foreground mt-2">
-                  파일을 업로드하고 있습니다...
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Results */}
-          {result && (
+          {showSingleForm ? (
+            /* Single Entry Form */
             <Card>
               <CardHeader>
-                <CardTitle>임포트 결과</CardTitle>
+                <CardTitle>인플루언서 등록</CardTitle>
+                <CardDescription>
+                  인플루언서 정보를 직접 입력하여 등록하세요
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
-                  <p className="text-sm">
-                    <strong>전체 행:</strong> {result.total}
-                  </p>
-                  <p className="text-sm text-green-600">
-                    <strong>성공적으로 임포트됨:</strong> {result.success}
-                  </p>
-                  <p className="text-sm text-destructive">
-                    <strong>오류:</strong> {result.errors}
-                  </p>
-                </div>
-                {result.errorRows.length > 0 && (
-                  <div className="mt-4">
-                    <p className="text-sm font-medium mb-2">오류 상세:</p>
-                    <div className="max-h-60 overflow-y-auto">
-                      {result.errorRows.map((error, index) => (
-                        <div key={index} className="p-2 bg-destructive/10 rounded mb-2 text-sm">
-                          {error.rowIndex + 1}행: {error.message}
-                        </div>
-                      ))}
+                <form onSubmit={handleSingleSubmit} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="name">이름 *</Label>
+                      <Input
+                        id="name"
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="platform">플랫폼 *</Label>
+                      <select
+                        id="platform"
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={formData.platform}
+                        onChange={(e) => setFormData({ ...formData, platform: e.target.value })}
+                        required
+                      >
+                        <option value="instagram">Instagram</option>
+                        <option value="threads">Threads</option>
+                        <option value="youtube">YouTube</option>
+                        <option value="tiktok">TikTok</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label htmlFor="handle">핸들</Label>
+                      <Input
+                        id="handle"
+                        value={formData.handle}
+                        onChange={(e) => setFormData({ ...formData, handle: e.target.value })}
+                        placeholder="자동 생성됩니다"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="profileUrl">프로필 URL</Label>
+                      <Input
+                        id="profileUrl"
+                        type="url"
+                        value={formData.profileUrl}
+                        onChange={(e) => setFormData({ ...formData, profileUrl: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="country">국가</Label>
+                      <Input
+                        id="country"
+                        value={formData.country}
+                        onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="city">도시</Label>
+                      <Input
+                        id="city"
+                        value={formData.city}
+                        onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="followers">팔로워</Label>
+                      <Input
+                        id="followers"
+                        type="number"
+                        value={formData.followers}
+                        onChange={(e) => setFormData({ ...formData, followers: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="avgLikes">평균 좋아요</Label>
+                      <Input
+                        id="avgLikes"
+                        type="number"
+                        value={formData.avgLikes}
+                        onChange={(e) => setFormData({ ...formData, avgLikes: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="avgComments">평균 댓글</Label>
+                      <Input
+                        id="avgComments"
+                        type="number"
+                        value={formData.avgComments}
+                        onChange={(e) => setFormData({ ...formData, avgComments: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="engagementRate">참여율 (%)</Label>
+                      <Input
+                        id="engagementRate"
+                        type="number"
+                        step="0.01"
+                        value={formData.engagementRate}
+                        onChange={(e) => setFormData({ ...formData, engagementRate: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="mainCategory">주요 카테고리</Label>
+                      <Input
+                        id="mainCategory"
+                        value={formData.mainCategory}
+                        onChange={(e) => setFormData({ ...formData, mainCategory: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="status">상태</Label>
+                      <select
+                        id="status"
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={formData.status}
+                        onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                      >
+                        <option value="candidate">후보</option>
+                        <option value="active">활성</option>
+                        <option value="blacklist">블랙리스트</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label htmlFor="contactEmail">연락처 이메일</Label>
+                      <Input
+                        id="contactEmail"
+                        type="email"
+                        value={formData.contactEmail}
+                        onChange={(e) => setFormData({ ...formData, contactEmail: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="contactDm">연락처 DM</Label>
+                      <Input
+                        id="contactDm"
+                        value={formData.contactDm}
+                        onChange={(e) => setFormData({ ...formData, contactDm: e.target.value })}
+                      />
                     </div>
                   </div>
-                )}
+                  <div>
+                    <Label htmlFor="collabTypes">협업 유형 (쉼표로 구분)</Label>
+                    <Input
+                      id="collabTypes"
+                      value={formData.collabTypes}
+                      onChange={(e) => setFormData({ ...formData, collabTypes: e.target.value })}
+                      placeholder="예: 제품 리뷰, 언박싱, 브랜드 협찬"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="tags">태그 (쉼표로 구분)</Label>
+                    <Input
+                      id="tags"
+                      value={formData.tags}
+                      onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+                      placeholder="예: 뷰티, 패션, 라이프스타일"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="basePriceText">기본 가격</Label>
+                    <Textarea
+                      id="basePriceText"
+                      value={formData.basePriceText}
+                      onChange={(e) => setFormData({ ...formData, basePriceText: e.target.value })}
+                      rows={3}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="notesSummary">메모 요약</Label>
+                    <Textarea
+                      id="notesSummary"
+                      value={formData.notesSummary}
+                      onChange={(e) => setFormData({ ...formData, notesSummary: e.target.value })}
+                      rows={3}
+                    />
+                  </div>
+                  <div className="flex justify-end space-x-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowSingleForm(false)}
+                    >
+                      취소
+                    </Button>
+                    <Button type="submit" disabled={submitting}>
+                      {submitting ? '등록 중...' : '등록'}
+                    </Button>
+                  </div>
+                </form>
               </CardContent>
             </Card>
+          ) : (
+            <>
+              {/* Step 1: Download Template */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>1단계: 템플릿 다운로드</CardTitle>
+                  <CardDescription>
+                    엑셀 양식을 다운로드하여 인플루언서 정보를 입력하세요
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button onClick={downloadTemplate} variant="outline" disabled={importing}>
+                    <Download className="h-4 w-4 mr-2" />
+                    템플릿 다운로드
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Step 2: Upload File */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>2단계: 파일 업로드</CardTitle>
+                  <CardDescription>
+                    작성한 Excel (.xlsx) 또는 CSV 파일을 업로드하면 자동으로 등록됩니다
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center space-x-4">
+                    <label 
+                      htmlFor="file-upload" 
+                      className={`cursor-pointer inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 ${importing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      <input
+                        id="file-upload"
+                        type="file"
+                        accept=".csv,.xlsx,.xls"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                        disabled={importing}
+                      />
+                      <Upload className="h-4 w-4 mr-2" />
+                      {importing ? '임포트 중...' : '파일 선택'}
+                    </label>
+                    {file && <span className="text-sm text-muted-foreground">{file.name}</span>}
+                  </div>
+                  {importing && (
+                    <p className="text-sm text-muted-foreground mt-2">
+                      파일을 업로드하고 있습니다...
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Results */}
+              {result && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>임포트 결과</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      <p className="text-sm">
+                        <strong>전체 행:</strong> {result.total}
+                      </p>
+                      <p className="text-sm text-green-600">
+                        <strong>성공적으로 임포트됨:</strong> {result.success}
+                      </p>
+                      <p className="text-sm text-destructive">
+                        <strong>오류:</strong> {result.errors}
+                      </p>
+                    </div>
+                    {result.errorRows.length > 0 && (
+                      <div className="mt-4">
+                        <p className="text-sm font-medium mb-2">오류 상세:</p>
+                        <div className="max-h-60 overflow-y-auto">
+                          {result.errorRows.map((error, index) => (
+                            <div key={index} className="p-2 bg-destructive/10 rounded mb-2 text-sm">
+                              {error.rowIndex + 1}행: {error.message}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </>
           )}
         </div>
       </div>

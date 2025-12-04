@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { formatDistanceToNow } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { Save, Edit2, X } from 'lucide-react'
+import { Save, Edit2, X, Trash2 } from 'lucide-react'
 
 interface Influencer {
   id: string
@@ -119,6 +119,33 @@ export function InfluencerDetail({ influencer: initialInfluencer, onClose, onUpd
     }
   }
 
+  const handleDelete = async () => {
+    if (!confirm(`정말로 "${influencer.name}" 인플루언서를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
+      return
+    }
+
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/influencers/${influencer.id}`, {
+        method: 'DELETE',
+      })
+
+      if (res.ok) {
+        onUpdate()
+        onClose()
+        alert('인플루언서가 삭제되었습니다')
+      } else {
+        const data = await res.json()
+        alert(data.error || '삭제에 실패했습니다')
+      }
+    } catch (error) {
+      console.error('Error deleting influencer:', error)
+      alert('삭제 중 오류가 발생했습니다')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const canEdit = userRole === 'admin'
 
   return (
@@ -141,10 +168,21 @@ export function InfluencerDetail({ influencer: initialInfluencer, onClose, onUpd
                     </Button>
                   </>
                 ) : (
-                  <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}>
-                    <Edit2 className="h-4 w-4 mr-2" />
-                    수정
-                  </Button>
+                  <>
+                    <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}>
+                      <Edit2 className="h-4 w-4 mr-2" />
+                      수정
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={handleDelete}
+                      disabled={loading}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      삭제
+                    </Button>
+                  </>
                 )}
               </div>
             )}
