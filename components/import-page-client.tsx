@@ -414,7 +414,11 @@ export function ImportPageClient() {
                         step="0.01"
                         value={formData.engagementRate}
                         onChange={(e) => setFormData({ ...formData, engagementRate: e.target.value })}
+                        placeholder="비워두면 자동 계산됩니다"
                       />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        비워두면 (좋아요 + 댓글 + 공유) / 팔로워 × 100으로 자동 계산됩니다
+                      </p>
                     </div>
                     <div>
                       <Label htmlFor="mainCategory">주요 카테고리</Label>

@@ -4,6 +4,30 @@ import { getInfluencers, getFilterOptions } from '@/lib/repositories/influencers
 import { db } from '@/lib/db'
 import { influencers } from '@/lib/db/schema'
 
+// 인게이지먼트 비율 자동 계산 함수
+function calculateEngagementRate(
+  followers: number | null | undefined,
+  avgLikes: number | null | undefined,
+  avgComments: number | null | undefined,
+  avgShares: number | null | undefined
+): string | null {
+  if (!followers || followers === 0) {
+    return null
+  }
+
+  const likes = avgLikes || 0
+  const comments = avgComments || 0
+  const shares = avgShares || 0
+
+  const totalEngagement = likes + comments + shares
+  if (totalEngagement === 0) {
+    return null
+  }
+
+  const rate = (totalEngagement / followers) * 100
+  return rate.toFixed(2)
+}
+
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth()
@@ -93,6 +117,26 @@ export async function POST(request: NextRequest) {
       ? tags.split(/[,;]/).map((s: string) => s.trim()).filter(Boolean)
       : []
 
+    // 숫자 변환
+    const followersNum = followers ? parseInt(String(followers)) : null
+    const avgLikesNum = avgLikes ? parseInt(String(avgLikes)) : null
+    const avgCommentsNum = avgComments ? parseInt(String(avgComments)) : null
+    const avgSharesNum = avgShares ? parseInt(String(avgShares)) : null
+
+    // 인게이지먼트 비율 자동 계산 (제공되지 않았을 때만)
+    let finalEngagementRate = engagementRate ? String(engagementRate) : null
+    if (!finalEngagementRate && followersNum && followersNum > 0) {
+      const calculatedRate = calculateEngagementRate(
+        followersNum,
+        avgLikesNum,
+        avgCommentsNum,
+        avgSharesNum
+      )
+      if (calculatedRate) {
+        finalEngagementRate = calculatedRate
+      }
+    }
+
     const [newInfluencer] = await db
       .insert(influencers)
       .values({
@@ -103,11 +147,11 @@ export async function POST(request: NextRequest) {
         country: country || null,
         city: city || null,
         languages: processedLanguages.length > 0 ? processedLanguages : null,
-        followers: followers ? parseInt(String(followers)) : null,
-        avgLikes: avgLikes ? parseInt(String(avgLikes)) : null,
-        avgComments: avgComments ? parseInt(String(avgComments)) : null,
-        avgShares: avgShares ? parseInt(String(avgShares)) : null,
-        engagementRate: engagementRate ? String(engagementRate) : null,
+        followers: followersNum,
+        avgLikes: avgLikesNum,
+        avgComments: avgCommentsNum,
+        avgShares: avgSharesNum,
+        engagementRate: finalEngagementRate,
         mainCategory: mainCategory || null,
         subCategories: processedSubCategories.length > 0 ? processedSubCategories : null,
         collabTypes: processedCollabTypes.length > 0 ? processedCollabTypes : null,

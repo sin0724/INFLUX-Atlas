@@ -6,6 +6,30 @@ import { eq } from 'drizzle-orm'
 import * as XLSX from 'xlsx'
 import Papa from 'papaparse'
 
+// 인게이지먼트 비율 자동 계산 함수
+function calculateEngagementRate(
+  followers: number | null | undefined,
+  avgLikes: number | null | undefined,
+  avgComments: number | null | undefined,
+  avgShares: number | null | undefined
+): string | null {
+  if (!followers || followers === 0) {
+    return null
+  }
+
+  const likes = avgLikes || 0
+  const comments = avgComments || 0
+  const shares = avgShares || 0
+
+  const totalEngagement = likes + comments + shares
+  if (totalEngagement === 0) {
+    return null
+  }
+
+  const rate = (totalEngagement / followers) * 100
+  return rate.toFixed(2)
+}
+
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAdmin()
@@ -188,6 +212,19 @@ export async function POST(request: NextRequest) {
         } else {
           // 프로필 URL도 없으면 이름 기반으로 생성
           influencerData.handle = influencerData.name.toLowerCase().replace(/\s+/g, '')
+        }
+      }
+
+      // 인게이지먼트 비율 자동 계산 (제공되지 않았을 때만)
+      if (!influencerData.engagementRate) {
+        const calculatedRate = calculateEngagementRate(
+          influencerData.followers,
+          influencerData.avgLikes,
+          influencerData.avgComments,
+          influencerData.avgShares
+        )
+        if (calculatedRate) {
+          influencerData.engagementRate = calculatedRate
         }
       }
 
