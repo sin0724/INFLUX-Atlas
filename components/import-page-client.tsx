@@ -223,14 +223,24 @@ export function ImportPageClient() {
 
 
   const downloadTemplate = () => {
-    // 간소화된 템플릿 생성
-    const templateData = simplifiedFields.map((f) => f.label)
-    const csv = templateData.join(',') + '\n'
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    // 간소화된 템플릿 생성 (엑셀 형식)
+    const headers = simplifiedFields.map((f) => f.label)
+    
+    // Create workbook
+    const worksheet = XLSX.utils.aoa_to_sheet([headers])
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, '인플루언서')
+    
+    // Generate Excel file buffer
+    const excelBuffer = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' })
+    const blob = new Blob([excelBuffer], { 
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+    })
+    
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = '인플루언서_등록_템플릿.csv'
+    a.download = '인플루언서_등록_템플릿.xlsx'
     a.click()
     window.URL.revokeObjectURL(url)
   }
@@ -404,6 +414,15 @@ export function ImportPageClient() {
                         type="number"
                         value={formData.avgComments}
                         onChange={(e) => setFormData({ ...formData, avgComments: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="avgShares">평균 공유</Label>
+                      <Input
+                        id="avgShares"
+                        type="number"
+                        value={formData.avgShares}
+                        onChange={(e) => setFormData({ ...formData, avgShares: e.target.value })}
                       />
                     </div>
                     <div>
