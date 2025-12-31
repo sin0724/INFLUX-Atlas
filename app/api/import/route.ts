@@ -95,6 +95,27 @@ export async function POST(request: NextRequest) {
         defval: '', // 빈 셀을 빈 문자열로 처리
         raw: false 
       })
+      
+      // 병합된 셀이나 빈 컬럼명 정리
+      if (rawData.length > 0) {
+        const firstRow = rawData[0] as any
+        const keysToRemove: string[] = []
+        
+        // 빈 컬럼명이나 의미 없는 컬럼 제거
+        Object.keys(firstRow).forEach(key => {
+          const trimmedKey = String(key || '').trim()
+          if (!trimmedKey || trimmedKey === 'undefined' || trimmedKey === '__EMPTY' || trimmedKey.includes('평균평균')) {
+            keysToRemove.push(key)
+          }
+        })
+        
+        // 불필요한 키 제거
+        rawData = rawData.map((row: any) => {
+          const cleanedRow: any = { ...row }
+          keysToRemove.forEach(key => delete cleanedRow[key])
+          return cleanedRow
+        })
+      }
     } else {
       return NextResponse.json({ error: 'Unsupported file format' }, { status: 400 })
     }
