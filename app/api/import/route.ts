@@ -336,13 +336,14 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Map fields
+      // Map fields (선택 필드들은 값이 있으면 처리, 없으면 스킵)
       for (const [dbField, uploadedColumn] of Object.entries(mapping)) {
+        // name, platform은 이미 위에서 처리했으므로 스킵
+        if (dbField === 'name' || dbField === 'platform') {
+          continue
+        }
+        
         if (!uploadedColumn) {
-          // 필수 필드가 매핑되지 않은 경우
-          if (['name', 'platform'].includes(dbField)) {
-            errors.push(`${dbField} column is not mapped`)
-          }
           continue
         }
 
@@ -364,27 +365,15 @@ export async function POST(request: NextRequest) {
           }
         }
         
-        // 디버깅: 첫 번째 행의 필드별 값 확인
-        if (i === 0 && ['name', 'platform'].includes(dbField)) {
-          console.log(`Field: ${dbField}, Column: ${uploadedColumn}, Value:`, value, 'Type:', typeof value, 'Has value:', value !== undefined && value !== null)
-        }
-        
+        // 값이 없으면 스킵 (선택 필드)
         if (value === null || value === undefined || value === '') {
-          // Check if required (handle은 자동 생성되므로 필수 아님)
-          if (['name', 'platform'].includes(dbField)) {
-            errors.push(`${dbField} is required (empty value)`)
-          }
           continue
         }
 
         const stringValue = String(value).trim()
         
-        // 빈 문자열 체크
+        // 빈 문자열이면 스킵 (선택 필드)
         if (!stringValue || stringValue === '') {
-          // Check if required (handle은 자동 생성되므로 필수 아님)
-          if (['name', 'platform'].includes(dbField)) {
-            errors.push(`${dbField} is required (empty after trim)`)
-          }
           continue
         }
 
@@ -512,21 +501,20 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Validate required fields (매핑 루프에서 이미 체크했지만, 누락된 경우를 대비해 재검증)
+      // 필수 필드 검증: 이름과 플랫폼만 필수
       if (i === 0) {
         console.log('After mapping - influencerData.name:', influencerData.name)
         console.log('After mapping - influencerData.platform:', influencerData.platform)
       }
       
+      // 이름 필수 검증
       if (!influencerData.name || typeof influencerData.name !== 'string' || influencerData.name.trim() === '') {
-        if (!errors.some(e => e.includes('name'))) {
-          errors.push('name is required (not found in mapped data)')
-        }
+        errors.push('이름은 필수입니다')
       }
+      
+      // 플랫폼 필수 검증
       if (!influencerData.platform || typeof influencerData.platform !== 'string' || influencerData.platform.trim() === '') {
-        if (!errors.some(e => e.includes('platform'))) {
-          errors.push('platform is required (not found in mapped data)')
-        }
+        errors.push('플랫폼은 필수입니다')
       }
       
       if (i === 0 && errors.length > 0) {

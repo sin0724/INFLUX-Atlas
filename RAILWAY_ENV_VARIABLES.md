@@ -24,27 +24,56 @@ VALUE: sb_secret_B-EGhskmwTsBkEeVhbMVWQ_YC85V7UD
 
 ### 4. DATABASE_URL
 
-**옵션 A: Connection pooling (권장)**
+⚠️ **중요: Railway는 IPv4 네트워크이므로 Session pooler를 반드시 사용해야 합니다!**
+
+**Session pooler 사용 (필수):**
+
+**VARIABLE_NAME**: `DATABASE_URL`
+
+**VALUE**: 
 ```
-VARIABLE_NAME: DATABASE_URL
-VALUE: postgresql://postgres.sqpplkjxpfeewwtvvdgk:hyun724970%21@aws-0-ap-northeast-2.pooler.supabase.com:6543/postgres
+postgresql://postgres.sqpplkjxpfeewwtvvdgk:hyun724970%21@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres
 ```
 
-**옵션 B: Direct connection**
-```
-VARIABLE_NAME: DATABASE_URL
-VALUE: postgresql://postgres:hyun724970%21@db.sqpplkjxpfeewwtvvdgk.supabase.co:5432/postgres
-```
+⚠️ **비밀번호 URL 인코딩**: `!` → `%21`
 
-⚠️ **중요**: 
-- Supabase 대시보드에서 최신 연결 문자열을 확인하세요
-- 비밀번호가 변경되었다면 Railway에서도 업데이트하세요
-- Connection pooling이 더 안정적입니다
+**Session pooler 특징:**
+- 호스트: `aws-1-ap-southeast-1.pooler.supabase.com`
+- 포트: `5432`
+- 사용자명: `postgres.sqpplkjxpfeewwtvvdgk`
+- ✅ IPv4 호환
+- ✅ Railway 호환
 
-⚠️ **주의사항:**
-- `DATABASE_URL`의 비밀번호에 특수문자(`!`)가 있으면 URL 인코딩이 필요합니다.
-- `!` → `%21`
-- Supabase 대시보드 > Settings > Database > Connection pooling에서 최신 연결 문자열을 확인하세요.
+**Connection pooling 특징:**
+- 포트: `6543` (Session mode) 또는 `5432` (Transaction mode)
+- 호스트: `aws-0-[REGION].pooler.supabase.com`
+- 사용자명: `postgres.[PROJECT_REF]`
+- ✅ IPv4 호환
+- ✅ Railway 호환
+
+**Direct connection은 사용하지 마세요!**
+- ❌ IPv4 비호환
+- ❌ Railway에서 연결 실패
+
+⚠️ **중요한 주의사항:**
+
+1. **Supabase 프로젝트 상태 확인 (가장 중요!)**
+   - 프로젝트가 **Active** 상태여야 합니다
+   - **Paused** 상태라면 **Resume** 클릭
+
+2. **비밀번호 URL 인코딩**
+   - 특수문자가 있으면 반드시 URL 인코딩 필요
+   - `!` → `%21`
+   - `@` → `%40`
+   - `#` → `%23`
+
+3. **최신 연결 문자열 사용**
+   - Supabase 대시보드 > Settings > Database에서 최신 연결 문자열 확인
+   - 비밀번호가 변경되었다면 Railway에서도 업데이트
+
+4. **Connection pooling 권장**
+   - Direct connection보다 안정적
+   - Supabase 대시보드에서 Connection pooling URI 사용
 
 ## 설정 방법
 
