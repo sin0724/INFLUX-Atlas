@@ -195,36 +195,73 @@ export async function POST(request: NextRequest) {
       const sheetName = workbook.SheetNames[0]
       const worksheet = workbook.Sheets[sheetName]
       
-      // sheet_to_json을 사용하여 파싱 (첫 번째 행이 헤더)
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
-        defval: '',
-        raw: false,
-        blankrows: false
-      }) as any[]
-      
-      if (jsonData.length === 0) {
+      // 범위 확인
+      const range = worksheet['!ref'] ? XLSX.utils.decode_range(worksheet['!ref']) : null
+      if (!range) {
         return NextResponse.json({ error: 'Empty worksheet' }, { status: 400 })
       }
       
-      // 헤더 추출
-      headers = Object.keys(jsonData[0] || {})
+      // 첫 번째 행(0번 행)을 헤더로 직접 읽기
+      headers = []
+      for (let col = range.s.c; col <= range.e.c; col++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col })
+        const cell = worksheet[cellAddress]
+        if (cell && cell.v !== undefined && cell.v !== null) {
+          const headerValue = String(cell.v).trim()
+          if (headerValue) {
+            headers.push(headerValue)
+          } else {
+            headers.push(`__EMPTY_${col}`)
+          }
+        } else {
+          headers.push(`__EMPTY_${col}`)
+        }
+      }
       
-      // 데이터 정리 (빈 값 처리)
-      rawData = jsonData.map((row, index) => {
-        const rowData: any = {}
-        headers.forEach(header => {
-          const value = row[header]
-          rowData[header] = value !== undefined && value !== null ? String(value).trim() : ''
-        })
-        return rowData
+      // 빈 헤더 필터링 및 정리
+      const validHeaders: Array<{header: string, index: number}> = []
+      headers.forEach((h, idx) => {
+        if (h && !h.startsWith('__EMPTY') && h !== '') {
+          validHeaders.push({ header: h, index: idx })
+        }
       })
       
+      console.log('=== Excel Import Debug ===')
+      console.log('Raw headers:', headers)
+      console.log('Valid headers:', validHeaders.map(h => h.header))
+      
+      // 데이터 행 읽기 (1번 행부터)
+      rawData = []
+      for (let row = 1; row <= range.e.r; row++) {
+        const rowData: any = {}
+        let hasData = false
+        
+        validHeaders.forEach(({ header, index }) => {
+          const cellAddress = XLSX.utils.encode_cell({ r: row, c: index })
+          const cell = worksheet[cellAddress]
+          if (cell && cell.v !== undefined && cell.v !== null) {
+            const value = String(cell.v).trim()
+            if (value) {
+              rowData[header] = value
+              hasData = true
+            } else {
+              rowData[header] = ''
+            }
+          } else {
+            rowData[header] = ''
+          }
+        })
+        
+        if (hasData) {
+          rawData.push(rowData)
+        }
+      }
+      
       // 서버 측 자동 매핑
-      const serverMapping = autoMapColumnsServer(headers)
+      const headerNames = validHeaders.map(h => h.header)
+      const serverMapping = autoMapColumnsServer(headerNames)
       mapping = { ...serverMapping, ...mapping }
       
-      console.log('=== Excel Import Debug ===')
-      console.log('Headers found:', headers)
       console.log('Mapping result:', mapping)
       console.log('First row data:', rawData[0])
     } else {
