@@ -163,38 +163,38 @@ export async function POST(request: NextRequest) {
       const workbook = XLSX.read(arrayBuffer, { type: 'array' })
       const sheetName = workbook.SheetNames[0]
       const worksheet = workbook.Sheets[sheetName]
-      rawData = XLSX.utils.sheet_to_json(worksheet, { 
-        defval: '', // 빈 셀을 빈 문자열로 처리
-        raw: false 
-      })
       
-      // 병합된 셀이나 빈 컬럼명 정리 및 서버 측 자동 매핑
-      if (rawData.length > 0) {
-        const firstRow = rawData[0] as any
-        const keysToRemove: string[] = []
-        const actualColumns: string[] = []
+      // 먼저 배열 형태로 파싱하여 첫 번째 행을 헤더로 사용
+      const jsonArray = XLSX.utils.sheet_to_json(worksheet, { 
+        defval: '',
+        header: 1, // 배열 형태로 파싱
+        raw: false,
+        blankrows: false
+      }) as any[][]
+      
+      if (jsonArray.length === 0) {
+        rawData = []
+      } else {
+        // 첫 번째 행을 헤더로, 나머지를 데이터로 변환
+        const headers = (jsonArray[0] as any[]).map((h: any) => String(h || '').trim()).filter(h => h && h !== '__EMPTY' && !h.includes('평균평균'))
+        const dataRows = jsonArray.slice(1)
         
-        // 실제 컬럼명 추출 및 정리
-        Object.keys(firstRow).forEach(key => {
-          const trimmedKey = String(key || '').trim()
-          if (!trimmedKey || trimmedKey === 'undefined' || trimmedKey === '__EMPTY' || trimmedKey.includes('평균평균')) {
-            keysToRemove.push(key)
-          } else {
-            actualColumns.push(trimmedKey)
-          }
+        rawData = dataRows.map((row: any[]) => {
+          const obj: any = {}
+          headers.forEach((header, index) => {
+            if (header) {
+              obj[header] = row[index] || ''
+            }
+          })
+          return obj
+        }).filter((row: any) => {
+          // 완전히 빈 행은 제거
+          return Object.values(row).some(v => v !== '' && v !== null && v !== undefined)
         })
         
-        // 불필요한 키 제거
-        rawData = rawData.map((row: any) => {
-          const cleanedRow: any = { ...row }
-          keysToRemove.forEach(key => delete cleanedRow[key])
-          return cleanedRow
-        })
-        
-        // 클라이언트 매핑이 없거나 불완전하면 서버에서 자동 매핑
+        // 서버 측 자동 매핑
         if (Object.keys(mapping).length === 0 || !mapping.name || !mapping.platform) {
-          const serverMapping = autoMapColumnsServer(actualColumns)
-          // 서버 매핑으로 보완 (클라이언트 매핑이 있는 필드는 유지)
+          const serverMapping = autoMapColumnsServer(headers.filter(h => h))
           mapping = { ...serverMapping, ...mapping }
         }
       }
