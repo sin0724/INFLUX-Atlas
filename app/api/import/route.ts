@@ -258,16 +258,80 @@ export async function POST(request: NextRequest) {
         createdBy: user.id,
       }
       
-      // 이름 추출 (모든 가능한 방법 시도)
-      const nameValue = getFieldValue(row, mapping.name || '이름', ['이름', 'name', 'Name', 'NAME'])
-      if (nameValue) {
-        influencerData.name = nameValue
-      } else {
-        errors.push('이름은 필수입니다')
+      // 디버깅: 첫 번째 행의 데이터 확인
+      if (i === 0) {
+        console.log('=== Row Processing Debug ===')
+        console.log('Row keys:', Object.keys(row))
+        console.log('Row object:', JSON.stringify(row, null, 2))
+        console.log('Mapping.name:', mapping.name)
+        console.log('Mapping.platform:', mapping.platform)
+        console.log('Direct row["이름"]:', row['이름'])
+        console.log('Direct row["플랫폼"]:', row['플랫폼'])
       }
       
-      // 플랫폼 추출 (모든 가능한 방법 시도)
-      let platformValue = getFieldValue(row, mapping.platform || '플랫폼', ['플랫폼', 'platform', 'Platform', 'PLATFORM'])
+      // 이름 추출: 먼저 row 객체의 키를 직접 확인
+      let nameValue: string | null = null
+      const rowKeys = Object.keys(row)
+      
+      // 1. 매핑된 컬럼명으로 직접 확인
+      if (mapping.name && row[mapping.name] !== undefined && row[mapping.name] !== null && String(row[mapping.name]).trim()) {
+        nameValue = String(row[mapping.name]).trim()
+      }
+      
+      // 2. "이름"으로 직접 확인
+      if (!nameValue && row['이름'] !== undefined && row['이름'] !== null && String(row['이름']).trim()) {
+        nameValue = String(row['이름']).trim()
+      }
+      
+      // 3. 모든 키에서 "이름" 찾기 (대소문자/공백 무시)
+      if (!nameValue) {
+        for (const key of rowKeys) {
+          const normalizedKey = key.trim().replace(/\s+/g, '').toLowerCase()
+          if (normalizedKey === '이름' || normalizedKey === 'name') {
+            const val = row[key]
+            if (val !== undefined && val !== null && String(val).trim()) {
+              nameValue = String(val).trim()
+              break
+            }
+          }
+        }
+      }
+      
+      if (nameValue) {
+        influencerData.name = nameValue
+        if (i === 0) console.log('Found name:', nameValue)
+      } else {
+        errors.push('이름은 필수입니다')
+        if (i === 0) console.log('Name not found. Available keys:', rowKeys)
+      }
+      
+      // 플랫폼 추출: 먼저 row 객체의 키를 직접 확인
+      let platformValue: string | null = null
+      
+      // 1. 매핑된 컬럼명으로 직접 확인
+      if (mapping.platform && row[mapping.platform] !== undefined && row[mapping.platform] !== null && String(row[mapping.platform]).trim()) {
+        platformValue = String(row[mapping.platform]).trim()
+      }
+      
+      // 2. "플랫폼"으로 직접 확인
+      if (!platformValue && row['플랫폼'] !== undefined && row['플랫폼'] !== null && String(row['플랫폼']).trim()) {
+        platformValue = String(row['플랫폼']).trim()
+      }
+      
+      // 3. 모든 키에서 "플랫폼" 찾기 (대소문자/공백 무시)
+      if (!platformValue) {
+        for (const key of rowKeys) {
+          const normalizedKey = key.trim().replace(/\s+/g, '').toLowerCase()
+          if (normalizedKey === '플랫폼' || normalizedKey === 'platform') {
+            const val = row[key]
+            if (val !== undefined && val !== null && String(val).trim()) {
+              platformValue = String(val).trim()
+              break
+            }
+          }
+        }
+      }
+      
       if (platformValue) {
         // 플랫폼 매핑 (한글/영어 → 영어 소문자)
         const platformMap: Record<string, string> = {
@@ -279,8 +343,10 @@ export async function POST(request: NextRequest) {
         }
         const normalized = platformValue.toLowerCase()
         influencerData.platform = platformMap[platformValue] || platformMap[normalized] || normalized
+        if (i === 0) console.log('Found platform:', platformValue, '->', influencerData.platform)
       } else {
         errors.push('플랫폼은 필수입니다')
+        if (i === 0) console.log('Platform not found. Available keys:', rowKeys)
       }
       
       // 필수 필드 검증
