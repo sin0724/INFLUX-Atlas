@@ -227,10 +227,17 @@ export async function POST(request: NextRequest) {
       })
       
       console.log('=== Excel Import Debug ===')
-      console.log('Raw headers:', headers)
-      console.log('Valid headers:', validHeaders.map(h => h.header))
+      console.log('Range:', range)
+      console.log('Raw headers (all columns):', headers)
+      console.log('Valid headers (filtered):', validHeaders.map(h => `${h.header} (col ${h.index})`))
       
-      // 데이터 행 읽기 (1번 행부터)
+      if (validHeaders.length === 0) {
+        return NextResponse.json({ 
+          error: `헤더를 찾을 수 없습니다. 첫 번째 행에 "이름", "플랫폼", "프로필URL" 등의 컬럼명이 있는지 확인해주세요. 읽은 헤더: ${headers.join(', ')}` 
+        }, { status: 400 })
+      }
+      
+      // 데이터 행 읽기 (1번 행부터, 즉 두 번째 행부터)
       rawData = []
       for (let row = 1; row <= range.e.r; row++) {
         const rowData: any = {}
@@ -241,17 +248,16 @@ export async function POST(request: NextRequest) {
           const cell = worksheet[cellAddress]
           if (cell && cell.v !== undefined && cell.v !== null) {
             const value = String(cell.v).trim()
+            rowData[header] = value
             if (value) {
-              rowData[header] = value
               hasData = true
-            } else {
-              rowData[header] = ''
             }
           } else {
             rowData[header] = ''
           }
         })
         
+        // 빈 행이 아닌 경우에만 추가
         if (hasData) {
           rawData.push(rowData)
         }
@@ -262,8 +268,14 @@ export async function POST(request: NextRequest) {
       const serverMapping = autoMapColumnsServer(headerNames)
       mapping = { ...serverMapping, ...mapping }
       
+      console.log('Header names for mapping:', headerNames)
       console.log('Mapping result:', mapping)
-      console.log('First row data:', rawData[0])
+      if (rawData.length > 0) {
+        console.log('First data row keys:', Object.keys(rawData[0]))
+        console.log('First data row sample:', JSON.stringify(rawData[0], null, 2))
+      } else {
+        console.log('No data rows found after processing')
+      }
     } else {
       return NextResponse.json({ error: 'Unsupported file format' }, { status: 400 })
     }
