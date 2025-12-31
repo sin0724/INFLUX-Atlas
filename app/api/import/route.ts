@@ -62,6 +62,59 @@ function calculateEngagementRate(
   return rate.toFixed(2)
 }
 
+// 서버 측 컬럼명 매핑 (클라이언트와 동일한 로직)
+function autoMapColumnsServer(columns: string[]): Record<string, string> {
+  const mapping: Record<string, string> = {}
+  const fieldMap: Record<string, string> = {
+    '이름': 'name',
+    '플랫폼': 'platform',
+    '프로필URL': 'profileUrl',
+    '프로필 URL': 'profileUrl',
+    '프로필url': 'profileUrl',
+    '국가': 'country',
+    '팔로워': 'followers',
+    '평균좋아요': 'avgLikes',
+    '평균 좋아요': 'avgLikes',
+    '평균댓글': 'avgComments',
+    '평균 댓글': 'avgComments',
+    '평균공유수': 'avgShares',
+    '평균 공유수': 'avgShares',
+    '평균공유': 'avgShares',
+    '참여율': 'engagementRate',
+    '카테고리': 'mainCategory',
+    '협업유형': 'collabTypes',
+    '협업 유형': 'collabTypes',
+    '단가': 'basePriceText',
+    '연락처': 'contactEmail',
+    '메모': 'notesSummary',
+  }
+
+  columns.forEach((col) => {
+    const trimmedCol = col.trim()
+    // 정확히 일치하는 경우
+    if (fieldMap[trimmedCol]) {
+      mapping[fieldMap[trimmedCol]] = trimmedCol
+      return
+    }
+    
+    // 공백 제거 후 매핑 시도
+    const noSpacesCol = trimmedCol.replace(/\s+/g, '')
+    if (fieldMap[noSpacesCol]) {
+      mapping[fieldMap[noSpacesCol]] = trimmedCol
+      return
+    }
+    
+    // 대소문자 무시 매핑 시도 (영어 컬럼명용)
+    const lowerCol = trimmedCol.toLowerCase()
+    const matchedKey = Object.keys(fieldMap).find(key => key.toLowerCase() === lowerCol)
+    if (matchedKey) {
+      mapping[fieldMap[matchedKey]] = trimmedCol
+    }
+  })
+
+  return mapping
+}
+
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAdmin()
@@ -69,7 +122,17 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData()
     const file = formData.get('file') as File
     const mappingJson = formData.get('mapping') as string
-    const mapping: Record<string, string> = JSON.parse(mappingJson)
+    let mapping: Record<string, string> = {}
+    
+    // 클라이언트에서 전달된 매핑이 있으면 사용, 없으면 서버에서 자동 생성
+    if (mappingJson) {
+      try {
+        mapping = JSON.parse(mappingJson)
+      } catch (e) {
+        // 매핑 파싱 실패 시 서버에서 자동 생성
+        mapping = {}
+      }
+    }
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
@@ -96,16 +159,19 @@ export async function POST(request: NextRequest) {
         raw: false 
       })
       
-      // 병합된 셀이나 빈 컬럼명 정리
+      // 병합된 셀이나 빈 컬럼명 정리 및 서버 측 자동 매핑
       if (rawData.length > 0) {
         const firstRow = rawData[0] as any
         const keysToRemove: string[] = []
+        const actualColumns: string[] = []
         
-        // 빈 컬럼명이나 의미 없는 컬럼 제거
+        // 실제 컬럼명 추출 및 정리
         Object.keys(firstRow).forEach(key => {
           const trimmedKey = String(key || '').trim()
           if (!trimmedKey || trimmedKey === 'undefined' || trimmedKey === '__EMPTY' || trimmedKey.includes('평균평균')) {
             keysToRemove.push(key)
+          } else {
+            actualColumns.push(trimmedKey)
           }
         })
         
@@ -115,6 +181,13 @@ export async function POST(request: NextRequest) {
           keysToRemove.forEach(key => delete cleanedRow[key])
           return cleanedRow
         })
+        
+        // 클라이언트 매핑이 없거나 불완전하면 서버에서 자동 매핑
+        if (Object.keys(mapping).length === 0 || !mapping.name || !mapping.platform) {
+          const serverMapping = autoMapColumnsServer(actualColumns)
+          // 서버 매핑으로 보완 (클라이언트 매핑이 있는 필드는 유지)
+          mapping = { ...serverMapping, ...mapping }
+        }
       }
     } else {
       return NextResponse.json({ error: 'Unsupported file format' }, { status: 400 })
