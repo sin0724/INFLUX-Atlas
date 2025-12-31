@@ -164,26 +164,36 @@ export async function POST(request: NextRequest) {
       const sheetName = workbook.SheetNames[0]
       const worksheet = workbook.Sheets[sheetName]
       
-      // 먼저 배열 형태로 파싱하여 첫 번째 행을 헤더로 사용
+      // 범위 확인 및 첫 번째 행을 헤더로 사용
+      const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
+      
+      // 배열 형태로 파싱 (헤더 포함)
       const jsonArray = XLSX.utils.sheet_to_json(worksheet, { 
         defval: '',
-        header: 1, // 배열 형태로 파싱
+        header: 1,
         raw: false,
         blankrows: false
       }) as any[][]
       
       if (jsonArray.length === 0) {
         rawData = []
+        mapping = {}
       } else {
-        // 첫 번째 행을 헤더로, 나머지를 데이터로 변환
-        const headers = (jsonArray[0] as any[]).map((h: any) => String(h || '').trim()).filter(h => h && h !== '__EMPTY' && !h.includes('평균평균'))
-        const dataRows = jsonArray.slice(1)
+        // 첫 번째 행을 헤더로 사용
+        const headerRow = jsonArray[0] as any[]
+        const headers = headerRow.map((h: any, idx: number) => {
+          const header = String(h || '').trim()
+          // 빈 헤더나 의미 없는 헤더는 컬럼 인덱스 사용하지 않고 제외
+          return header && header !== '__EMPTY' && !header.includes('평균평균') ? header : null
+        })
         
+        // 데이터 행 처리
+        const dataRows = jsonArray.slice(1)
         rawData = dataRows.map((row: any[]) => {
           const obj: any = {}
           headers.forEach((header, index) => {
             if (header) {
-              obj[header] = row[index] || ''
+              obj[header] = row[index] !== undefined ? String(row[index] || '').trim() : ''
             }
           })
           return obj
@@ -192,10 +202,13 @@ export async function POST(request: NextRequest) {
           return Object.values(row).some(v => v !== '' && v !== null && v !== undefined)
         })
         
-        // 서버 측 자동 매핑
+        // 서버 측 자동 매핑 (유효한 헤더만 사용)
+        const validHeaders = headers.filter((h): h is string => h !== null && h !== '')
         if (Object.keys(mapping).length === 0 || !mapping.name || !mapping.platform) {
-          const serverMapping = autoMapColumnsServer(headers.filter(h => h))
+          const serverMapping = autoMapColumnsServer(validHeaders)
           mapping = { ...serverMapping, ...mapping }
+          console.log('Server mapping result:', serverMapping)
+          console.log('Valid headers:', validHeaders)
         }
       }
     } else {
