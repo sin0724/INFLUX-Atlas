@@ -239,10 +239,26 @@ export async function POST(request: NextRequest) {
       console.log('=== Header Row Analysis ===')
       console.log('First 10 header cells:', headerCells.slice(0, 10))
       
-      // 빈 헤더 필터링 및 정리
+      // 다른 행들도 확인 (헤더가 첫 번째 행이 아닐 수도 있음)
+      console.log('=== Checking Other Rows ===')
+      for (let checkRow = 0; checkRow < Math.min(3, range.e.r + 1); checkRow++) {
+        const rowCells: any[] = []
+        for (let col = range.s.c; col <= Math.min(range.s.c + 10, range.e.c); col++) {
+          const cellAddress = XLSX.utils.encode_cell({ r: checkRow, c: col })
+          const cell = worksheet[cellAddress]
+          if (cell) {
+            const displayValue = cell.w !== undefined ? String(cell.w).trim() : (cell.v !== undefined ? String(cell.v).trim() : '')
+            rowCells.push({ col, address: cellAddress, value: cell.v, displayValue, type: cell.t })
+          }
+        }
+        console.log(`Row ${checkRow} first 10 cells:`, rowCells)
+      }
+      
+      // 빈 헤더 필터링 및 정리 - 숫자만 있는 헤더는 제외
       const validHeaders: Array<{header: string, index: number}> = []
       headers.forEach((h, idx) => {
-        if (h && !h.startsWith('__EMPTY') && h !== '') {
+        // 빈 헤더 제외, __EMPTY 제외, 숫자만 있는 것 제외 (실제 헤더는 텍스트여야 함)
+        if (h && !h.startsWith('__EMPTY') && h !== '' && (isNaN(Number(h)) || h.match(/[가-힣a-zA-Z]/))) {
           validHeaders.push({ header: h, index: idx })
         }
       })
