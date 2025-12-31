@@ -124,12 +124,18 @@ export async function POST(request: NextRequest) {
 
       // Map fields
       for (const [dbField, uploadedColumn] of Object.entries(mapping)) {
-        if (!uploadedColumn) continue
+        if (!uploadedColumn) {
+          // 필수 필드가 매핑되지 않은 경우
+          if (['name', 'platform'].includes(dbField)) {
+            errors.push(`${dbField} column is not mapped`)
+          }
+          continue
+        }
 
         const value = row[uploadedColumn]
         if (value === null || value === undefined || value === '') {
-          // Check if required
-          if (['name', 'platform', 'handle'].includes(dbField)) {
+          // Check if required (handle은 자동 생성되므로 필수 아님)
+          if (['name', 'platform'].includes(dbField)) {
             errors.push(`${dbField} is required`)
           }
           continue
@@ -139,8 +145,8 @@ export async function POST(request: NextRequest) {
         
         // 빈 문자열 체크
         if (!stringValue || stringValue === '') {
-          // Check if required
-          if (['name', 'platform', 'handle'].includes(dbField)) {
+          // Check if required (handle은 자동 생성되므로 필수 아님)
+          if (['name', 'platform'].includes(dbField)) {
             errors.push(`${dbField} is required`)
           }
           continue
@@ -247,12 +253,16 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Validate required fields
+      // Validate required fields (매핑 루프에서 이미 체크했지만, 누락된 경우를 대비해 재검증)
       if (!influencerData.name || typeof influencerData.name !== 'string' || influencerData.name.trim() === '') {
-        errors.push('name is required')
+        if (!errors.some(e => e.includes('name'))) {
+          errors.push('name is required')
+        }
       }
       if (!influencerData.platform || typeof influencerData.platform !== 'string' || influencerData.platform.trim() === '') {
-        errors.push('platform is required')
+        if (!errors.some(e => e.includes('platform'))) {
+          errors.push('platform is required')
+        }
       }
       
       // 핸들 자동 생성 (프로필 URL에서 추출 또는 이름 기반)
