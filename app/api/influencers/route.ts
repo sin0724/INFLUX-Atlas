@@ -4,6 +4,42 @@ import { getInfluencers, getFilterOptions } from '@/lib/repositories/influencers
 import { db } from '@/lib/db'
 import { influencers } from '@/lib/db/schema'
 
+// 한국어 숫자 단위 파싱 함수 (예: "3.1만" → 31000, "1.3천" → 1300)
+function parseKoreanNumber(value: string | number): number | null {
+  if (typeof value === 'number') {
+    return Math.round(value)
+  }
+
+  if (!value || typeof value !== 'string') {
+    return null
+  }
+
+  const trimmed = String(value).trim().replace(/,/g, '') // 쉼표 제거
+  const match = trimmed.match(/^([\d.]+)\s*(만|천)?$/)
+  
+  if (!match) {
+    // 일반 숫자만 있는 경우
+    const num = parseFloat(trimmed)
+    return isNaN(num) ? null : Math.round(num)
+  }
+
+  const numberPart = parseFloat(match[1])
+  const unit = match[2]
+
+  if (isNaN(numberPart)) {
+    return null
+  }
+
+  if (unit === '만') {
+    return Math.round(numberPart * 10000)
+  } else if (unit === '천') {
+    return Math.round(numberPart * 1000)
+  } else {
+    // 단위가 없는 경우
+    return Math.round(numberPart)
+  }
+}
+
 // 인게이지먼트 비율 자동 계산 함수
 function calculateEngagementRate(
   followers: number | null | undefined,
@@ -117,11 +153,11 @@ export async function POST(request: NextRequest) {
       ? tags.split(/[,;]/).map((s: string) => s.trim()).filter(Boolean)
       : []
 
-    // 숫자 변환
-    const followersNum = followers ? parseInt(String(followers)) : null
-    const avgLikesNum = avgLikes ? parseInt(String(avgLikes)) : null
-    const avgCommentsNum = avgComments ? parseInt(String(avgComments)) : null
-    const avgSharesNum = avgShares ? parseInt(String(avgShares)) : null
+    // 숫자 변환 (한국어 단위 지원: "3.1만", "1.3천")
+    const followersNum = followers ? parseKoreanNumber(String(followers)) : null
+    const avgLikesNum = avgLikes ? parseKoreanNumber(String(avgLikes)) : null
+    const avgCommentsNum = avgComments ? parseKoreanNumber(String(avgComments)) : null
+    const avgSharesNum = avgShares ? parseKoreanNumber(String(avgShares)) : null
 
     // 인게이지먼트 비율 자동 계산 (제공되지 않았을 때만)
     let finalEngagementRate = engagementRate ? String(engagementRate) : null

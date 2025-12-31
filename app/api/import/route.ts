@@ -6,6 +6,38 @@ import { eq } from 'drizzle-orm'
 import * as XLSX from 'xlsx'
 import Papa from 'papaparse'
 
+// 한국어 숫자 단위 파싱 함수 (예: "3.1만" → 31000, "1.3천" → 1300)
+function parseKoreanNumber(value: string): number | null {
+  if (!value || typeof value !== 'string') {
+    return null
+  }
+
+  const trimmed = value.trim().replace(/,/g, '') // 쉼표 제거
+  const match = trimmed.match(/^([\d.]+)\s*(만|천)?$/)
+  
+  if (!match) {
+    // 일반 숫자만 있는 경우
+    const num = parseFloat(trimmed)
+    return isNaN(num) ? null : Math.round(num)
+  }
+
+  const numberPart = parseFloat(match[1])
+  const unit = match[2]
+
+  if (isNaN(numberPart)) {
+    return null
+  }
+
+  if (unit === '만') {
+    return Math.round(numberPart * 10000)
+  } else if (unit === '천') {
+    return Math.round(numberPart * 1000)
+  } else {
+    // 단위가 없는 경우
+    return Math.round(numberPart)
+  }
+}
+
 // 인게이지먼트 비율 자동 계산 함수
 function calculateEngagementRate(
   followers: number | null | undefined,
@@ -173,11 +205,18 @@ export async function POST(request: NextRequest) {
           case 'avgLikes':
           case 'avgComments':
           case 'avgShares':
-            const num = parseInt(stringValue)
-            if (isNaN(num)) {
-              errors.push(`${dbField} must be a number`)
+            // 한국어 숫자 단위 파싱 시도 (예: "3.1만", "1.3천")
+            const parsedNum = parseKoreanNumber(stringValue)
+            if (parsedNum === null) {
+              // 한국어 단위 파싱 실패 시 일반 숫자 파싱 시도
+              const num = parseFloat(stringValue.replace(/,/g, ''))
+              if (isNaN(num)) {
+                errors.push(`${dbField} must be a number`)
+              } else {
+                influencerData[dbField] = Math.round(num)
+              }
             } else {
-              influencerData[dbField] = num
+              influencerData[dbField] = parsedNum
             }
             break
 
