@@ -164,51 +164,47 @@ export async function POST(request: NextRequest) {
       const sheetName = workbook.SheetNames[0]
       const worksheet = workbook.Sheets[sheetName]
       
-      // 범위 확인 및 첫 번째 행을 헤더로 사용
-      const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
+      // 클라이언트와 동일한 방식으로 파싱 (헤더를 자동 인식)
+      rawData = XLSX.utils.sheet_to_json(worksheet, { 
+        defval: '', // 빈 셀을 빈 문자열로 처리
+        raw: false 
+      }) as any[]
       
-      // 배열 형태로 파싱 (헤더 포함)
-      const jsonArray = XLSX.utils.sheet_to_json(worksheet, { 
-        defval: '',
-        header: 1,
-        raw: false,
-        blankrows: false
-      }) as any[][]
-      
-      if (jsonArray.length === 0) {
-        rawData = []
-        mapping = {}
-      } else {
-        // 첫 번째 행을 헤더로 사용
-        const headerRow = jsonArray[0] as any[]
-        const headers = headerRow.map((h: any, idx: number) => {
-          const header = String(h || '').trim()
-          // 빈 헤더나 의미 없는 헤더는 컬럼 인덱스 사용하지 않고 제외
-          return header && header !== '__EMPTY' && !header.includes('평균평균') ? header : null
+      // 병합된 셀이나 빈 컬럼명 정리 및 서버 측 자동 매핑
+      if (rawData.length > 0) {
+        const firstRow = rawData[0] as any
+        const actualColumns: string[] = []
+        const keysToKeep: string[] = []
+        
+        // 실제 컬럼명 추출 및 정리
+        Object.keys(firstRow).forEach(key => {
+          const trimmedKey = String(key || '').trim()
+          // 빈 헤더나 의미 없는 헤더 제외
+          if (trimmedKey && trimmedKey !== 'undefined' && trimmedKey !== '__EMPTY' && !trimmedKey.includes('평균평균') && !/^__EMPTY/.test(trimmedKey)) {
+            actualColumns.push(trimmedKey)
+            keysToKeep.push(key)
+          }
         })
         
-        // 데이터 행 처리
-        const dataRows = jsonArray.slice(1)
-        rawData = dataRows.map((row: any[]) => {
-          const obj: any = {}
-          headers.forEach((header, index) => {
-            if (header) {
-              obj[header] = row[index] !== undefined ? String(row[index] || '').trim() : ''
-            }
+        // 불필요한 키 제거 (유효한 헤더만 유지)
+        rawData = rawData.map((row: any) => {
+          const cleanedRow: any = {}
+          keysToKeep.forEach(key => {
+            cleanedRow[key] = row[key] !== undefined ? row[key] : ''
           })
-          return obj
+          return cleanedRow
         }).filter((row: any) => {
           // 완전히 빈 행은 제거
           return Object.values(row).some(v => v !== '' && v !== null && v !== undefined)
         })
         
-        // 서버 측 자동 매핑 (유효한 헤더만 사용)
-        const validHeaders = headers.filter((h): h is string => h !== null && h !== '')
+        // 서버 측 자동 매핑
         if (Object.keys(mapping).length === 0 || !mapping.name || !mapping.platform) {
-          const serverMapping = autoMapColumnsServer(validHeaders)
+          const serverMapping = autoMapColumnsServer(actualColumns)
           mapping = { ...serverMapping, ...mapping }
           console.log('Server mapping result:', serverMapping)
-          console.log('Valid headers:', validHeaders)
+          console.log('Actual columns:', actualColumns)
+          console.log('First row keys:', Object.keys(rawData[0] || {}))
         }
       }
     } else {
