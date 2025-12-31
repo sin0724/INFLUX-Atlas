@@ -191,7 +191,13 @@ export async function POST(request: NextRequest) {
       }
     } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
       const arrayBuffer = await file.arrayBuffer()
-      const workbook = XLSX.read(arrayBuffer, { type: 'array' })
+      // cellText: true로 설정하여 모든 셀을 텍스트로 읽기
+      const workbook = XLSX.read(arrayBuffer, { 
+        type: 'array',
+        cellText: false,
+        cellDates: true,
+        raw: false
+      })
       const sheetName = workbook.SheetNames[0]
       const worksheet = workbook.Sheets[sheetName]
       
