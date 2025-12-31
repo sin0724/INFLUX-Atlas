@@ -144,11 +144,27 @@ export async function POST(request: NextRequest) {
           continue
         }
 
-        const value = row[uploadedColumn]
+        // 컬럼명이 정확히 일치하지 않을 수 있으므로 대소문자 및 공백 무시하여 매칭
+        let value = row[uploadedColumn]
+        
+        // 정확히 일치하지 않으면 대소문자/공백 무시하여 찾기
+        if (value === undefined || value === null) {
+          const rowKeys = Object.keys(row)
+          const matchedKey = rowKeys.find(key => 
+            key.trim().toLowerCase() === uploadedColumn.trim().toLowerCase() ||
+            key.trim().replace(/\s+/g, '') === uploadedColumn.trim().replace(/\s+/g, '')
+          )
+          if (matchedKey) {
+            value = row[matchedKey]
+            if (i === 0) {
+              console.log(`Found column by fuzzy match: ${uploadedColumn} -> ${matchedKey}`)
+            }
+          }
+        }
         
         // 디버깅: 첫 번째 행의 필드별 값 확인
         if (i === 0 && ['name', 'platform'].includes(dbField)) {
-          console.log(`Field: ${dbField}, Column: ${uploadedColumn}, Value:`, value, 'Type:', typeof value)
+          console.log(`Field: ${dbField}, Column: ${uploadedColumn}, Value:`, value, 'Type:', typeof value, 'Has value:', value !== undefined && value !== null)
         }
         
         if (value === null || value === undefined || value === '') {
