@@ -160,52 +160,58 @@ export async function POST(request: NextRequest) {
       }
     } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
       const arrayBuffer = await file.arrayBuffer()
-      const workbook = XLSX.read(arrayBuffer, { type: 'array' })
+      const workbook = XLSX.read(arrayBuffer, { type: 'array', cellText: false, cellDates: true })
       const sheetName = workbook.SheetNames[0]
       const worksheet = workbook.Sheets[sheetName]
       
-      // 클라이언트와 동일한 방식으로 파싱 (헤더를 자동 인식)
-      rawData = XLSX.utils.sheet_to_json(worksheet, { 
-        defval: '', // 빈 셀을 빈 문자열로 처리
-        raw: false 
-      }) as any[]
+      // 첫 번째 행을 명시적으로 헤더로 사용
+      // A1부터 시작하는 범위 확인
+      const range = worksheet['!ref'] ? XLSX.utils.decode_range(worksheet['!ref']) : null
+      if (!range) {
+        return NextResponse.json({ error: 'Empty worksheet' }, { status: 400 })
+      }
       
-      // 병합된 셀이나 빈 컬럼명 정리 및 서버 측 자동 매핑
-      if (rawData.length > 0) {
-        const firstRow = rawData[0] as any
-        const actualColumns: string[] = []
-        const keysToKeep: string[] = []
+      // 첫 번째 행(헤더) 추출
+      const headerRow: string[] = []
+      for (let col = range.s.c; col <= range.e.c; col++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col })
+        const cell = worksheet[cellAddress]
+        const headerValue = cell ? String(cell.v || '').trim() : ''
+        headerRow.push(headerValue)
+      }
+      
+      // 헤더 정리 (빈 헤더나 의미 없는 헤더 제외)
+      const validHeaders = headerRow
+        .map((h, idx) => ({ header: h, index: idx }))
+        .filter(({ header }) => header && header !== '__EMPTY' && !header.includes('평균평균'))
+        .map(({ header, index }) => ({ header, index }))
+      
+      // 데이터 행 파싱 (2번째 행부터)
+      rawData = []
+      for (let row = 1; row <= range.e.r; row++) {
+        const rowData: any = {}
+        let hasData = false
         
-        // 실제 컬럼명 추출 및 정리
-        Object.keys(firstRow).forEach(key => {
-          const trimmedKey = String(key || '').trim()
-          // 빈 헤더나 의미 없는 헤더 제외
-          if (trimmedKey && trimmedKey !== 'undefined' && trimmedKey !== '__EMPTY' && !trimmedKey.includes('평균평균') && !/^__EMPTY/.test(trimmedKey)) {
-            actualColumns.push(trimmedKey)
-            keysToKeep.push(key)
-          }
+        validHeaders.forEach(({ header, index }) => {
+          const cellAddress = XLSX.utils.encode_cell({ r: row, c: index })
+          const cell = worksheet[cellAddress]
+          const value = cell ? (cell.v !== undefined ? String(cell.v).trim() : '') : ''
+          if (value) hasData = true
+          rowData[header] = value
         })
         
-        // 불필요한 키 제거 (유효한 헤더만 유지)
-        rawData = rawData.map((row: any) => {
-          const cleanedRow: any = {}
-          keysToKeep.forEach(key => {
-            cleanedRow[key] = row[key] !== undefined ? row[key] : ''
-          })
-          return cleanedRow
-        }).filter((row: any) => {
-          // 완전히 빈 행은 제거
-          return Object.values(row).some(v => v !== '' && v !== null && v !== undefined)
-        })
-        
-        // 서버 측 자동 매핑
-        if (Object.keys(mapping).length === 0 || !mapping.name || !mapping.platform) {
-          const serverMapping = autoMapColumnsServer(actualColumns)
-          mapping = { ...serverMapping, ...mapping }
-          console.log('Server mapping result:', serverMapping)
-          console.log('Actual columns:', actualColumns)
-          console.log('First row keys:', Object.keys(rawData[0] || {}))
+        if (hasData) {
+          rawData.push(rowData)
         }
+      }
+      
+      // 서버 측 자동 매핑
+      const headerNames = validHeaders.map(h => h.header)
+      if (Object.keys(mapping).length === 0 || !mapping.name || !mapping.platform) {
+        const serverMapping = autoMapColumnsServer(headerNames)
+        mapping = { ...serverMapping, ...mapping }
+        console.log('Server mapping result:', serverMapping)
+        console.log('Header names:', headerNames)
       }
     } else {
       return NextResponse.json({ error: 'Unsupported file format' }, { status: 400 })
