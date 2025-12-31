@@ -124,9 +124,14 @@ export async function POST(request: NextRequest) {
       
       // 디버깅: 첫 번째 행의 매핑 정보 로그
       if (i === 0) {
-        console.log('Mapping:', mapping)
+        console.log('=== Import Debug Info ===')
+        console.log('Mapping:', JSON.stringify(mapping, null, 2))
         console.log('Row keys:', Object.keys(row))
-        console.log('Row data:', row)
+        console.log('Row data:', JSON.stringify(row, null, 2))
+        console.log('Name column in mapping:', mapping.name)
+        console.log('Platform column in mapping:', mapping.platform)
+        console.log('Name value in row:', row[mapping.name])
+        console.log('Platform value in row:', row[mapping.platform])
       }
 
       // Map fields
@@ -140,10 +145,16 @@ export async function POST(request: NextRequest) {
         }
 
         const value = row[uploadedColumn]
+        
+        // 디버깅: 첫 번째 행의 필드별 값 확인
+        if (i === 0 && ['name', 'platform'].includes(dbField)) {
+          console.log(`Field: ${dbField}, Column: ${uploadedColumn}, Value:`, value, 'Type:', typeof value)
+        }
+        
         if (value === null || value === undefined || value === '') {
           // Check if required (handle은 자동 생성되므로 필수 아님)
           if (['name', 'platform'].includes(dbField)) {
-            errors.push(`${dbField} is required`)
+            errors.push(`${dbField} is required (empty value)`)
           }
           continue
         }
@@ -154,7 +165,7 @@ export async function POST(request: NextRequest) {
         if (!stringValue || stringValue === '') {
           // Check if required (handle은 자동 생성되므로 필수 아님)
           if (['name', 'platform'].includes(dbField)) {
-            errors.push(`${dbField} is required`)
+            errors.push(`${dbField} is required (empty after trim)`)
           }
           continue
         }
@@ -284,15 +295,24 @@ export async function POST(request: NextRequest) {
       }
 
       // Validate required fields (매핑 루프에서 이미 체크했지만, 누락된 경우를 대비해 재검증)
+      if (i === 0) {
+        console.log('After mapping - influencerData.name:', influencerData.name)
+        console.log('After mapping - influencerData.platform:', influencerData.platform)
+      }
+      
       if (!influencerData.name || typeof influencerData.name !== 'string' || influencerData.name.trim() === '') {
         if (!errors.some(e => e.includes('name'))) {
-          errors.push('name is required')
+          errors.push('name is required (not found in mapped data)')
         }
       }
       if (!influencerData.platform || typeof influencerData.platform !== 'string' || influencerData.platform.trim() === '') {
         if (!errors.some(e => e.includes('platform'))) {
-          errors.push('platform is required')
+          errors.push('platform is required (not found in mapped data)')
         }
+      }
+      
+      if (i === 0 && errors.length > 0) {
+        console.log('First row errors:', errors)
       }
       
       // 핸들 자동 생성 (프로필 URL에서 추출 또는 이름 기반)

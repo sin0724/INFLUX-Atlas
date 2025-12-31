@@ -101,8 +101,24 @@ export function ImportPageClient() {
 
     columns.forEach((col) => {
       const trimmedCol = col.trim()
+      // 정확히 일치하는 경우
       if (fieldMap[trimmedCol]) {
         mapping[fieldMap[trimmedCol]] = trimmedCol
+        return
+      }
+      
+      // 공백 제거 후 매핑 시도
+      const noSpacesCol = trimmedCol.replace(/\s+/g, '')
+      if (fieldMap[noSpacesCol]) {
+        mapping[fieldMap[noSpacesCol]] = trimmedCol
+        return
+      }
+      
+      // 대소문자 무시 매핑 시도 (영어 컬럼명용)
+      const lowerCol = trimmedCol.toLowerCase()
+      const matchedKey = Object.keys(fieldMap).find(key => key.toLowerCase() === lowerCol)
+      if (matchedKey) {
+        mapping[fieldMap[matchedKey]] = trimmedCol
       }
     })
 
