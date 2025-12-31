@@ -238,33 +238,72 @@ export async function POST(request: NextRequest) {
       // 필수 필드를 먼저 직접 찾아서 처리 (매핑이 안 되어 있을 경우 대비)
       const rowKeys = Object.keys(row)
       
-      // 이름 필드 처리
+      // 이름 필드 처리 - 모든 가능한 방법으로 찾기
       if (!influencerData.name) {
-        const nameColumn = mapping.name || '이름'
-        let nameValue = row[nameColumn]
-        if (!nameValue) {
-          const matchedKey = rowKeys.find(key => {
-            const k = key.trim().toLowerCase()
-            return k === nameColumn.toLowerCase() || k === '이름' || k === 'name'
-          })
-          if (matchedKey) nameValue = row[matchedKey]
+        const nameCandidates = [
+          mapping.name,
+          '이름',
+          'name',
+          'Name',
+          'NAME'
+        ].filter(Boolean)
+        
+        let nameValue: any = null
+        for (const candidate of nameCandidates) {
+          if (candidate && row[candidate] !== undefined && row[candidate] !== null && row[candidate] !== '') {
+            nameValue = row[candidate]
+            break
+          }
         }
+        
+        // 정확히 일치하지 않으면 fuzzy matching
+        if (!nameValue) {
+          for (const key of rowKeys) {
+            const normalizedKey = key.trim().toLowerCase()
+            if (normalizedKey === '이름' || normalizedKey === 'name') {
+              nameValue = row[key]
+              if (nameValue && String(nameValue).trim()) break
+            }
+          }
+        }
+        
         if (nameValue && String(nameValue).trim()) {
           influencerData.name = String(nameValue).trim()
+          if (i === 0) {
+            console.log('Found name:', influencerData.name)
+          }
         }
       }
       
-      // 플랫폼 필드 처리
+      // 플랫폼 필드 처리 - 모든 가능한 방법으로 찾기
       if (!influencerData.platform) {
-        const platformColumn = mapping.platform || '플랫폼'
-        let platformValue = row[platformColumn]
-        if (!platformValue) {
-          const matchedKey = rowKeys.find(key => {
-            const k = key.trim().toLowerCase()
-            return k === platformColumn.toLowerCase() || k === '플랫폼' || k === 'platform'
-          })
-          if (matchedKey) platformValue = row[matchedKey]
+        const platformCandidates = [
+          mapping.platform,
+          '플랫폼',
+          'platform',
+          'Platform',
+          'PLATFORM'
+        ].filter(Boolean)
+        
+        let platformValue: any = null
+        for (const candidate of platformCandidates) {
+          if (candidate && row[candidate] !== undefined && row[candidate] !== null && row[candidate] !== '') {
+            platformValue = row[candidate]
+            break
+          }
         }
+        
+        // 정확히 일치하지 않으면 fuzzy matching
+        if (!platformValue) {
+          for (const key of rowKeys) {
+            const normalizedKey = key.trim().toLowerCase()
+            if (normalizedKey === '플랫폼' || normalizedKey === 'platform') {
+              platformValue = row[key]
+              if (platformValue && String(platformValue).trim()) break
+            }
+          }
+        }
+        
         if (platformValue && String(platformValue).trim()) {
           const platformStr = String(platformValue).trim()
           const platformMap: Record<string, string> = {
@@ -276,6 +315,9 @@ export async function POST(request: NextRequest) {
           }
           const normalized = platformStr.toLowerCase()
           influencerData.platform = platformMap[platformStr] || platformMap[normalized] || normalized
+          if (i === 0) {
+            console.log('Found platform:', influencerData.platform, 'from:', platformStr)
+          }
         }
       }
 
