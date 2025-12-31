@@ -149,6 +149,15 @@ export async function POST(request: NextRequest) {
         skipEmptyLines: true,
       })
       rawData = result.data as any[]
+      
+      // CSV 파일의 경우에도 서버 측 자동 매핑
+      if (rawData.length > 0) {
+        const actualColumns = Object.keys(rawData[0] as any).map(k => String(k).trim())
+        if (Object.keys(mapping).length === 0 || !mapping.name || !mapping.platform) {
+          const serverMapping = autoMapColumnsServer(actualColumns)
+          mapping = { ...serverMapping, ...mapping }
+        }
+      }
     } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
       const arrayBuffer = await file.arrayBuffer()
       const workbook = XLSX.read(arrayBuffer, { type: 'array' })
