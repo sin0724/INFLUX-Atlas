@@ -164,54 +164,41 @@ export async function POST(request: NextRequest) {
       const sheetName = workbook.SheetNames[0]
       const worksheet = workbook.Sheets[sheetName]
       
-      // 첫 번째 행을 명시적으로 헤더로 사용
-      // A1부터 시작하는 범위 확인
-      const range = worksheet['!ref'] ? XLSX.utils.decode_range(worksheet['!ref']) : null
-      if (!range) {
+      // 첫 번째 행을 헤더로 사용하여 JSON으로 변환 (defval: ''로 빈 셀은 빈 문자열로 처리)
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+        defval: '',
+        raw: false,
+        blankrows: false
+      }) as any[]
+      
+      if (jsonData.length === 0) {
         return NextResponse.json({ error: 'Empty worksheet' }, { status: 400 })
       }
       
-      // 첫 번째 행(헤더) 추출
-      const headerRow: string[] = []
-      for (let col = range.s.c; col <= range.e.c; col++) {
-        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col })
-        const cell = worksheet[cellAddress]
-        const headerValue = cell ? String(cell.v || '').trim() : ''
-        headerRow.push(headerValue)
-      }
-      
-      // 헤더 정리 (빈 헤더나 의미 없는 헤더 제외)
-      const validHeaders = headerRow
-        .map((h, idx) => ({ header: h, index: idx }))
-        .filter(({ header }) => header && header !== '__EMPTY' && !header.includes('평균평균'))
-        .map(({ header, index }) => ({ header, index }))
-      
-      // 데이터 행 파싱 (2번째 행부터)
-      rawData = []
-      for (let row = 1; row <= range.e.r; row++) {
+      // 첫 번째 행의 키를 헤더로 사용 (실제 데이터는 2행부터)
+      const headers = Object.keys(jsonData[0] || {})
+      rawData = jsonData.map(row => {
         const rowData: any = {}
-        let hasData = false
-        
-        validHeaders.forEach(({ header, index }) => {
-          const cellAddress = XLSX.utils.encode_cell({ r: row, c: index })
-          const cell = worksheet[cellAddress]
-          const value = cell ? (cell.v !== undefined ? String(cell.v).trim() : '') : ''
-          if (value) hasData = true
-          rowData[header] = value
+        headers.forEach(header => {
+          const value = row[header]
+          rowData[header] = value !== undefined && value !== null ? String(value).trim() : ''
         })
-        
-        if (hasData) {
-          rawData.push(rowData)
-        }
+        return rowData
+      })
+      
+      console.log('Excel headers:', headers)
+      console.log('Total data rows:', rawData.length)
+      if (rawData.length > 0) {
+        console.log('First data row keys:', Object.keys(rawData[0]))
+        console.log('First data row sample:', JSON.stringify(rawData[0], null, 2))
       }
       
       // 서버 측 자동 매핑
-      const headerNames = validHeaders.map(h => h.header)
       if (Object.keys(mapping).length === 0 || !mapping.name || !mapping.platform) {
-        const serverMapping = autoMapColumnsServer(headerNames)
+        const serverMapping = autoMapColumnsServer(headers)
         mapping = { ...serverMapping, ...mapping }
         console.log('Server mapping result:', serverMapping)
-        console.log('Header names:', headerNames)
+        console.log('Final mapping:', mapping)
       }
     } else {
       return NextResponse.json({ error: 'Unsupported file format' }, { status: 400 })
