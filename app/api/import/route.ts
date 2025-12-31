@@ -194,11 +194,13 @@ export async function POST(request: NextRequest) {
           case 'subCategories':
           case 'collabTypes':
           case 'tags':
-            // Split by comma or semicolon
-            influencerData[dbField] = stringValue
-              .split(/[,;]/)
-              .map((s) => s.trim())
-              .filter(Boolean)
+            // Split by comma or semicolon (안전하게 처리)
+            if (stringValue && typeof stringValue === 'string') {
+              influencerData[dbField] = stringValue
+                .split(/[,;]/)
+                .map((s) => s.trim())
+                .filter(Boolean)
+            }
             break
 
           default:
@@ -207,11 +209,16 @@ export async function POST(request: NextRequest) {
       }
 
       // Validate required fields
-      if (!influencerData.name) errors.push('name is required')
-      if (!influencerData.platform) errors.push('platform is required')
+      if (!influencerData.name || typeof influencerData.name !== 'string' || influencerData.name.trim() === '') {
+        errors.push('name is required')
+      }
+      if (!influencerData.platform || typeof influencerData.platform !== 'string' || influencerData.platform.trim() === '') {
+        errors.push('platform is required')
+      }
       
       // 핸들 자동 생성 (프로필 URL에서 추출 또는 이름 기반)
-      if (!influencerData.handle) {
+      // name이 유효할 때만 핸들 생성 시도
+      if (!influencerData.handle && influencerData.name && typeof influencerData.name === 'string') {
         if (influencerData.profileUrl) {
           // 프로필 URL에서 핸들 추출 시도
           try {
@@ -220,15 +227,25 @@ export async function POST(request: NextRequest) {
             if (pathParts.length > 0) {
               influencerData.handle = pathParts[pathParts.length - 1].replace('@', '')
             } else {
-              influencerData.handle = influencerData.name.toLowerCase().replace(/\s+/g, '')
+              // 이름 기반으로 생성 (안전하게 처리)
+              const nameStr = influencerData.name && typeof influencerData.name === 'string' 
+                ? influencerData.name 
+                : ''
+              influencerData.handle = nameStr.toLowerCase().replace(/\s+/g, '') || 'user'
             }
           } catch {
-            // URL 파싱 실패 시 이름 기반으로 생성
-            influencerData.handle = influencerData.name.toLowerCase().replace(/\s+/g, '')
+            // URL 파싱 실패 시 이름 기반으로 생성 (안전하게 처리)
+            const nameStr = influencerData.name && typeof influencerData.name === 'string' 
+              ? influencerData.name 
+              : ''
+            influencerData.handle = nameStr.toLowerCase().replace(/\s+/g, '') || 'user'
           }
         } else {
-          // 프로필 URL도 없으면 이름 기반으로 생성
-          influencerData.handle = influencerData.name.toLowerCase().replace(/\s+/g, '')
+          // 프로필 URL도 없으면 이름 기반으로 생성 (안전하게 처리)
+          const nameStr = influencerData.name && typeof influencerData.name === 'string' 
+            ? influencerData.name 
+            : ''
+          influencerData.handle = nameStr.toLowerCase().replace(/\s+/g, '') || 'user'
         }
       }
 
