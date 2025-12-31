@@ -59,7 +59,10 @@ export async function POST(request: NextRequest) {
       const workbook = XLSX.read(arrayBuffer, { type: 'array' })
       const sheetName = workbook.SheetNames[0]
       const worksheet = workbook.Sheets[sheetName]
-      rawData = XLSX.utils.sheet_to_json(worksheet)
+      rawData = XLSX.utils.sheet_to_json(worksheet, { 
+        defval: '', // 빈 셀을 빈 문자열로 처리
+        raw: false 
+      })
     } else {
       return NextResponse.json({ error: 'Unsupported file format' }, { status: 400 })
     }
@@ -101,6 +104,15 @@ export async function POST(request: NextRequest) {
         }
 
         const stringValue = String(value).trim()
+        
+        // 빈 문자열 체크
+        if (!stringValue || stringValue === '') {
+          // Check if required
+          if (['name', 'platform', 'handle'].includes(dbField)) {
+            errors.push(`${dbField} is required`)
+          }
+          continue
+        }
 
         // Type conversion and validation
         switch (dbField) {
@@ -133,10 +145,13 @@ export async function POST(request: NextRequest) {
               '기타': 'other',
               'other': 'other',
             }
-            const normalizedPlatform = stringValue.toLowerCase().trim()
-            const mappedPlatform = platformMap[normalizedPlatform] || normalizedPlatform
+            // 안전하게 toLowerCase 호출
+            const normalizedPlatform = (stringValue && typeof stringValue === 'string') 
+              ? stringValue.toLowerCase().trim() 
+              : ''
+            const mappedPlatform = normalizedPlatform ? (platformMap[normalizedPlatform] || normalizedPlatform) : ''
             
-            if (!['instagram', 'threads', 'youtube', 'tiktok', 'other'].includes(mappedPlatform)) {
+            if (!normalizedPlatform || !['instagram', 'threads', 'youtube', 'tiktok', 'other'].includes(mappedPlatform)) {
               errors.push(`Invalid platform: ${stringValue}`)
             } else {
               influencerData.platform = mappedPlatform
@@ -144,8 +159,10 @@ export async function POST(request: NextRequest) {
             break
 
           case 'status':
-            const status = stringValue.toLowerCase()
-            if (!['candidate', 'active', 'blacklist'].includes(status)) {
+            const status = (stringValue && typeof stringValue === 'string') 
+              ? stringValue.toLowerCase().trim() 
+              : ''
+            if (!status || !['candidate', 'active', 'blacklist'].includes(status)) {
               errors.push(`Invalid status: ${stringValue}`)
             } else {
               influencerData.status = status
