@@ -203,13 +203,25 @@ export async function POST(request: NextRequest) {
       
       // 첫 번째 행(0번 행)을 헤더로 직접 읽기
       headers = []
+      const headerCells: Array<{col: number, address: string, value: any, type: string}> = []
       for (let col = range.s.c; col <= range.e.c; col++) {
         const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col })
         const cell = worksheet[cellAddress]
-        if (cell && cell.v !== undefined && cell.v !== null) {
-          const headerValue = String(cell.v).trim()
-          if (headerValue) {
-            headers.push(headerValue)
+        if (cell) {
+          headerCells.push({
+            col,
+            address: cellAddress,
+            value: cell.v,
+            type: cell.t || 'unknown'
+          })
+          // 셀 값이 있으면 문자열로 변환
+          if (cell.v !== undefined && cell.v !== null) {
+            const headerValue = String(cell.v).trim()
+            if (headerValue) {
+              headers.push(headerValue)
+            } else {
+              headers.push(`__EMPTY_${col}`)
+            }
           } else {
             headers.push(`__EMPTY_${col}`)
           }
@@ -217,6 +229,9 @@ export async function POST(request: NextRequest) {
           headers.push(`__EMPTY_${col}`)
         }
       }
+      
+      console.log('=== Header Row Analysis ===')
+      console.log('First 10 header cells:', headerCells.slice(0, 10))
       
       // 빈 헤더 필터링 및 정리
       const validHeaders: Array<{header: string, index: number}> = []
@@ -232,8 +247,23 @@ export async function POST(request: NextRequest) {
       console.log('Valid headers (filtered):', validHeaders.map(h => `${h.header} (col ${h.index})`))
       
       if (validHeaders.length === 0) {
+        // 헤더를 찾을 수 없는 경우, 실제 셀 값들을 상세히 로그
+        console.log('No valid headers found. All header values:', headers)
+        console.log('Header cells detail:', headerCells.slice(0, 20))
+        
+        // 혹시 첫 번째 행이 헤더가 아닐 수도 있으므로, 두 번째 행도 확인
+        const secondRowCells: any[] = []
+        for (let col = range.s.c; col <= Math.min(range.s.c + 15, range.e.c); col++) {
+          const cellAddress = XLSX.utils.encode_cell({ r: 1, c: col })
+          const cell = worksheet[cellAddress]
+          if (cell && cell.v !== undefined && cell.v !== null) {
+            secondRowCells.push({ col, address: cellAddress, value: String(cell.v).trim() })
+          }
+        }
+        console.log('Second row (row 1) first 15 cells:', secondRowCells)
+        
         return NextResponse.json({ 
-          error: `헤더를 찾을 수 없습니다. 첫 번째 행에 "이름", "플랫폼", "프로필URL" 등의 컬럼명이 있는지 확인해주세요. 읽은 헤더: ${headers.join(', ')}` 
+          error: `헤더를 찾을 수 없습니다. 첫 번째 행에 "이름", "플랫폼", "프로필URL" 등의 텍스트 컬럼명이 있는지 확인해주세요. 읽은 값: ${headers.slice(0, 10).join(', ')}...` 
         }, { status: 400 })
       }
       
