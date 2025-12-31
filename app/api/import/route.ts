@@ -230,11 +230,53 @@ export async function POST(request: NextRequest) {
         console.log('=== Import Debug Info ===')
         console.log('Mapping:', JSON.stringify(mapping, null, 2))
         console.log('Row keys:', Object.keys(row))
-        console.log('Row data:', JSON.stringify(row, null, 2))
+        console.log('Row data sample:', JSON.stringify({ ...row, ...Object.fromEntries(Object.keys(row).slice(0, 3).map(k => [k, row[k]])) }, null, 2))
         console.log('Name column in mapping:', mapping.name)
         console.log('Platform column in mapping:', mapping.platform)
-        console.log('Name value in row:', row[mapping.name])
-        console.log('Platform value in row:', row[mapping.platform])
+      }
+
+      // 필수 필드를 먼저 직접 찾아서 처리 (매핑이 안 되어 있을 경우 대비)
+      const rowKeys = Object.keys(row)
+      
+      // 이름 필드 처리
+      if (!influencerData.name) {
+        const nameColumn = mapping.name || '이름'
+        let nameValue = row[nameColumn]
+        if (!nameValue) {
+          const matchedKey = rowKeys.find(key => {
+            const k = key.trim().toLowerCase()
+            return k === nameColumn.toLowerCase() || k === '이름' || k === 'name'
+          })
+          if (matchedKey) nameValue = row[matchedKey]
+        }
+        if (nameValue && String(nameValue).trim()) {
+          influencerData.name = String(nameValue).trim()
+        }
+      }
+      
+      // 플랫폼 필드 처리
+      if (!influencerData.platform) {
+        const platformColumn = mapping.platform || '플랫폼'
+        let platformValue = row[platformColumn]
+        if (!platformValue) {
+          const matchedKey = rowKeys.find(key => {
+            const k = key.trim().toLowerCase()
+            return k === platformColumn.toLowerCase() || k === '플랫폼' || k === 'platform'
+          })
+          if (matchedKey) platformValue = row[matchedKey]
+        }
+        if (platformValue && String(platformValue).trim()) {
+          const platformStr = String(platformValue).trim()
+          const platformMap: Record<string, string> = {
+            '인스타그램': 'instagram', '인스타': 'instagram', 'instagram': 'instagram',
+            '유튜브': 'youtube', 'youtube': 'youtube',
+            '틱톡': 'tiktok', '티크톡': 'tiktok', 'tiktok': 'tiktok',
+            '스레드': 'threads', 'threads': 'threads',
+            '기타': 'other', 'other': 'other',
+          }
+          const normalized = platformStr.toLowerCase()
+          influencerData.platform = platformMap[platformStr] || platformMap[normalized] || normalized
+        }
       }
 
       // Map fields
