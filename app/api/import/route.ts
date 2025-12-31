@@ -269,71 +269,75 @@ export async function POST(request: NextRequest) {
         console.log('Direct row["플랫폼"]:', row['플랫폼'])
       }
       
-      // 이름 추출: 먼저 row 객체의 키를 직접 확인
-      let nameValue: string | null = null
       const rowKeys = Object.keys(row)
       
-      // 1. 매핑된 컬럼명으로 직접 확인
-      if (mapping.name && row[mapping.name] !== undefined && row[mapping.name] !== null && String(row[mapping.name]).trim()) {
-        nameValue = String(row[mapping.name]).trim()
+      // 이름 추출 (선택 필드 - 모든 문자 허용)
+      let nameValue: string | null = null
+      if (mapping.name && row[mapping.name] !== undefined && row[mapping.name] !== null) {
+        const val = String(row[mapping.name])
+        if (val.trim()) nameValue = val.trim()
       }
-      
-      // 2. "이름"으로 직접 확인
-      if (!nameValue && row['이름'] !== undefined && row['이름'] !== null && String(row['이름']).trim()) {
-        nameValue = String(row['이름']).trim()
+      if (!nameValue && row['이름'] !== undefined && row['이름'] !== null) {
+        const val = String(row['이름'])
+        if (val.trim()) nameValue = val.trim()
       }
-      
-      // 3. 모든 키에서 "이름" 찾기 (대소문자/공백 무시)
       if (!nameValue) {
         for (const key of rowKeys) {
           const normalizedKey = key.trim().replace(/\s+/g, '').toLowerCase()
           if (normalizedKey === '이름' || normalizedKey === 'name') {
             const val = row[key]
-            if (val !== undefined && val !== null && String(val).trim()) {
-              nameValue = String(val).trim()
-              break
+            if (val !== undefined && val !== null) {
+              const strVal = String(val).trim()
+              if (strVal) {
+                nameValue = strVal
+                break
+              }
             }
           }
         }
       }
-      
       if (nameValue) {
-        influencerData.name = nameValue
-        if (i === 0) console.log('Found name:', nameValue)
-      } else {
-        errors.push('이름은 필수입니다')
-        if (i === 0) console.log('Name not found. Available keys:', rowKeys)
+        influencerData.name = nameValue // 모든 문자 허용 (한글, 특수문자, 이모지 등)
       }
       
-      // 플랫폼 추출: 먼저 row 객체의 키를 직접 확인
+      // 플랫폼 추출 (필수 필드)
       let platformValue: string | null = null
+      let platformSource: string = ''
       
-      // 1. 매핑된 컬럼명으로 직접 확인
-      if (mapping.platform && row[mapping.platform] !== undefined && row[mapping.platform] !== null && String(row[mapping.platform]).trim()) {
-        platformValue = String(row[mapping.platform]).trim()
+      if (mapping.platform && row[mapping.platform] !== undefined && row[mapping.platform] !== null) {
+        const val = String(row[mapping.platform]).trim()
+        if (val) {
+          platformValue = val
+          platformSource = `매핑된 컬럼 "${mapping.platform}"`
+        }
       }
       
-      // 2. "플랫폼"으로 직접 확인
-      if (!platformValue && row['플랫폼'] !== undefined && row['플랫폼'] !== null && String(row['플랫폼']).trim()) {
-        platformValue = String(row['플랫폼']).trim()
+      if (!platformValue && row['플랫폼'] !== undefined && row['플랫폼'] !== null) {
+        const val = String(row['플랫폼']).trim()
+        if (val) {
+          platformValue = val
+          platformSource = '컬럼 "플랫폼"'
+        }
       }
       
-      // 3. 모든 키에서 "플랫폼" 찾기 (대소문자/공백 무시)
       if (!platformValue) {
         for (const key of rowKeys) {
           const normalizedKey = key.trim().replace(/\s+/g, '').toLowerCase()
           if (normalizedKey === '플랫폼' || normalizedKey === 'platform') {
             const val = row[key]
-            if (val !== undefined && val !== null && String(val).trim()) {
-              platformValue = String(val).trim()
-              break
+            if (val !== undefined && val !== null) {
+              const strVal = String(val).trim()
+              if (strVal) {
+                platformValue = strVal
+                platformSource = `컬럼 "${key}"`
+                break
+              }
             }
           }
         }
       }
       
       if (platformValue) {
-        // 플랫폼 매핑 (한글/영어 → 영어 소문자)
         const platformMap: Record<string, string> = {
           '인스타그램': 'instagram', '인스타': 'instagram', 'instagram': 'instagram',
           '유튜브': 'youtube', 'youtube': 'youtube',
@@ -343,31 +347,160 @@ export async function POST(request: NextRequest) {
         }
         const normalized = platformValue.toLowerCase()
         influencerData.platform = platformMap[platformValue] || platformMap[normalized] || normalized
-        if (i === 0) console.log('Found platform:', platformValue, '->', influencerData.platform)
       } else {
-        errors.push('플랫폼은 필수입니다')
-        if (i === 0) console.log('Platform not found. Available keys:', rowKeys)
+        errors.push(`플랫폼 필수: 사용 가능한 컬럼명 [${rowKeys.join(', ')}] 중에서 "플랫폼" 또는 "platform" 컬럼을 찾을 수 없습니다`)
       }
       
-      // 필수 필드 검증
-      if (!influencerData.name || !influencerData.platform) {
+      // 프로필URL 추출 (필수 필드)
+      let profileUrlValue: string | null = null
+      let profileUrlSource: string = ''
+      
+      if (mapping.profileUrl && row[mapping.profileUrl] !== undefined && row[mapping.profileUrl] !== null) {
+        const val = String(row[mapping.profileUrl]).trim()
+        if (val) {
+          profileUrlValue = val
+          profileUrlSource = `매핑된 컬럼 "${mapping.profileUrl}"`
+        }
+      }
+      
+      if (!profileUrlValue && row['프로필URL'] !== undefined && row['프로필URL'] !== null) {
+        const val = String(row['프로필URL']).trim()
+        if (val) {
+          profileUrlValue = val
+          profileUrlSource = '컬럼 "프로필URL"'
+        }
+      }
+      
+      if (!profileUrlValue && row['프로필 URL'] !== undefined && row['프로필 URL'] !== null) {
+        const val = String(row['프로필 URL']).trim()
+        if (val) {
+          profileUrlValue = val
+          profileUrlSource = '컬럼 "프로필 URL"'
+        }
+      }
+      
+      if (!profileUrlValue) {
+        for (const key of rowKeys) {
+          const normalizedKey = key.trim().replace(/\s+/g, '').toLowerCase()
+          if (normalizedKey === '프로필url' || normalizedKey === 'profileurl' || normalizedKey === 'profile_url') {
+            const val = row[key]
+            if (val !== undefined && val !== null) {
+              const strVal = String(val).trim()
+              if (strVal) {
+                profileUrlValue = strVal
+                profileUrlSource = `컬럼 "${key}"`
+                break
+              }
+            }
+          }
+        }
+      }
+      
+      if (profileUrlValue) {
+        influencerData.profileUrl = profileUrlValue
+      } else {
+        errors.push(`프로필URL 필수: 사용 가능한 컬럼명 [${rowKeys.join(', ')}] 중에서 "프로필URL", "프로필 URL", "profileUrl" 컬럼을 찾을 수 없습니다`)
+      }
+      
+      // 팔로워 추출 (필수 필드)
+      let followersValue: number | null = null
+      let followersSource: string = ''
+      
+      if (mapping.followers && row[mapping.followers] !== undefined && row[mapping.followers] !== null) {
+        const val = String(row[mapping.followers]).trim()
+        if (val) {
+          const parsed = parseKoreanNumber(val)
+          if (parsed !== null) {
+            followersValue = parsed
+            followersSource = `매핑된 컬럼 "${mapping.followers}" (값: ${val})`
+          } else {
+            const num = parseFloat(val.replace(/,/g, ''))
+            if (!isNaN(num)) {
+              followersValue = Math.round(num)
+              followersSource = `매핑된 컬럼 "${mapping.followers}" (값: ${val})`
+            }
+          }
+        }
+      }
+      
+      if (followersValue === null && row['팔로워'] !== undefined && row['팔로워'] !== null) {
+        const val = String(row['팔로워']).trim()
+        if (val) {
+          const parsed = parseKoreanNumber(val)
+          if (parsed !== null) {
+            followersValue = parsed
+            followersSource = `컬럼 "팔로워" (값: ${val})`
+          } else {
+            const num = parseFloat(val.replace(/,/g, ''))
+            if (!isNaN(num)) {
+              followersValue = Math.round(num)
+              followersSource = `컬럼 "팔로워" (값: ${val})`
+            }
+          }
+        }
+      }
+      
+      if (followersValue === null) {
+        for (const key of rowKeys) {
+          const normalizedKey = key.trim().replace(/\s+/g, '').toLowerCase()
+          if (normalizedKey === '팔로워' || normalizedKey === 'followers') {
+            const val = row[key]
+            if (val !== undefined && val !== null) {
+              const strVal = String(val).trim()
+              if (strVal) {
+                const parsed = parseKoreanNumber(strVal)
+                if (parsed !== null) {
+                  followersValue = parsed
+                  followersSource = `컬럼 "${key}" (값: ${strVal})`
+                  break
+                } else {
+                  const num = parseFloat(strVal.replace(/,/g, ''))
+                  if (!isNaN(num)) {
+                    followersValue = Math.round(num)
+                    followersSource = `컬럼 "${key}" (값: ${strVal})`
+                    break
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      if (followersValue !== null && followersValue > 0) {
+        influencerData.followers = followersValue
+      } else {
+        const foundCol = rowKeys.find(k => {
+          const normalized = k.trim().replace(/\s+/g, '').toLowerCase()
+          return normalized === '팔로워' || normalized === 'followers'
+        })
+        if (foundCol) {
+          const val = row[foundCol]
+          errors.push(`팔로워 필수: 컬럼 "${foundCol}"에서 값 "${val}"을 숫자로 변환할 수 없습니다 (숫자 또는 "3.1만", "1.3천" 형식이어야 함)`)
+        } else {
+          errors.push(`팔로워 필수: 사용 가능한 컬럼명 [${rowKeys.join(', ')}] 중에서 "팔로워" 또는 "followers" 컬럼을 찾을 수 없습니다`)
+        }
+      }
+      
+      // 필수 필드 검증 (플랫폼, 프로필URL, 팔로워)
+      if (errors.length > 0) {
+        const errorMessage = `행 ${i + 1}: ${errors.join('; ')}`
         errorRows.push({
           rowIndex: i,
-          message: errors.join('; '),
+          message: errorMessage,
           rawData: row,
         })
         await db.insert(importErrors).values({
           batchId: batch.id,
           rowIndex: i,
-          errorMessage: errors.join('; '),
+          errorMessage: errorMessage,
           rawData: row as any,
         })
         continue
       }
       
-      // 선택 필드 처리
+      // 선택 필드 처리 (profileUrl, followers는 이미 필수 필드로 처리됨)
       const fieldMappings: Array<{dbField: string, alternatives: string[]}> = [
-        { dbField: 'profileUrl', alternatives: ['프로필URL', '프로필 URL', 'profileUrl', 'profile_url'] },
         { dbField: 'country', alternatives: ['국가', 'country'] },
         { dbField: 'city', alternatives: ['도시', 'city'] },
         { dbField: 'mainCategory', alternatives: ['카테고리', 'mainCategory', 'category'] },
@@ -389,9 +522,8 @@ export async function POST(request: NextRequest) {
         }
       }
       
-      // 숫자 필드 처리
+      // 숫자 필드 처리 (followers는 이미 필수 필드로 처리됨)
       const numberFields: Array<{dbField: string, alternatives: string[]}> = [
-        { dbField: 'followers', alternatives: ['팔로워', 'followers'] },
         { dbField: 'avgLikes', alternatives: ['평균좋아요', '평균 좋아요', 'avgLikes'] },
         { dbField: 'avgComments', alternatives: ['평균댓글', '평균 댓글', 'avgComments'] },
         { dbField: 'avgShares', alternatives: ['평균공유수', '평균 공유수', 'avgShares'] },
@@ -422,9 +554,12 @@ export async function POST(request: NextRequest) {
         }
       }
       
-      // 핸들 자동 생성
+      // 핸들 자동 생성 (이름이 있으면 이름 기반, 없으면 URL 기반)
       if (!influencerData.handle) {
-        if (influencerData.profileUrl) {
+        if (influencerData.name) {
+          // 이름 기반 핸들 생성 (모든 문자 허용하되 특수문자는 제거)
+          influencerData.handle = influencerData.name.replace(/[^\w가-힣]/g, '').toLowerCase() || 'user'
+        } else if (influencerData.profileUrl) {
           try {
             const url = new URL(influencerData.profileUrl)
             const pathParts = url.pathname.split('/').filter(Boolean)
@@ -432,11 +567,11 @@ export async function POST(request: NextRequest) {
               influencerData.handle = pathParts[pathParts.length - 1].replace('@', '')
             }
           } catch {
-            // URL 파싱 실패 시 이름 기반
+            // URL 파싱 실패 시 기본값
+            influencerData.handle = 'user'
           }
-        }
-        if (!influencerData.handle && influencerData.name) {
-          influencerData.handle = influencerData.name.toLowerCase().replace(/\s+/g, '') || 'user'
+        } else {
+          influencerData.handle = 'user'
         }
       }
       
