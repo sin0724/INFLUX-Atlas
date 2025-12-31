@@ -121,6 +121,13 @@ export async function POST(request: NextRequest) {
       const influencerData: any = {
         createdBy: user.id,
       }
+      
+      // 디버깅: 첫 번째 행의 매핑 정보 로그
+      if (i === 0) {
+        console.log('Mapping:', mapping)
+        console.log('Row keys:', Object.keys(row))
+        console.log('Row data:', row)
+      }
 
       // Map fields
       for (const [dbField, uploadedColumn] of Object.entries(mapping)) {
@@ -168,28 +175,51 @@ export async function POST(request: NextRequest) {
             break
 
           case 'platform':
-            // 한글 플랫폼명을 영어로 변환
+            // 한글/영어 플랫폼명을 영어로 변환
+            const trimmedPlatform = (stringValue && typeof stringValue === 'string') 
+              ? stringValue.trim() 
+              : ''
+            
+            if (!trimmedPlatform) {
+              errors.push(`platform is required`)
+              break
+            }
+
+            // 플랫폼 매핑 (한글은 원본 그대로, 영어는 소문자로)
             const platformMap: Record<string, string> = {
+              // 한글
               '인스타그램': 'instagram',
-              'instagram': 'instagram',
               '인스타': 'instagram',
               '유튜브': 'youtube',
-              'youtube': 'youtube',
               '틱톡': 'tiktok',
-              'tiktok': 'tiktok',
               '티크톡': 'tiktok',
               '스레드': 'threads',
-              'threads': 'threads',
               '기타': 'other',
+              // 영어 (소문자)
+              'instagram': 'instagram',
+              'youtube': 'youtube',
+              'tiktok': 'tiktok',
+              'threads': 'threads',
               'other': 'other',
+              // 영어 (대문자 혼합)
+              'Instagram': 'instagram',
+              'YouTube': 'youtube',
+              'TikTok': 'tiktok',
+              'Threads': 'threads',
+              'Other': 'other',
             }
-            // 안전하게 toLowerCase 호출
-            const normalizedPlatform = (stringValue && typeof stringValue === 'string') 
-              ? stringValue.toLowerCase().trim() 
-              : ''
-            const mappedPlatform = normalizedPlatform ? (platformMap[normalizedPlatform] || normalizedPlatform) : ''
             
-            if (!normalizedPlatform || !['instagram', 'threads', 'youtube', 'tiktok', 'other'].includes(mappedPlatform)) {
+            // 한글 플랫폼명은 원본 그대로 매핑 시도
+            let mappedPlatform = platformMap[trimmedPlatform]
+            
+            // 매핑되지 않으면 소문자로 변환 후 다시 시도
+            if (!mappedPlatform) {
+              const lowerPlatform = trimmedPlatform.toLowerCase()
+              mappedPlatform = platformMap[lowerPlatform] || lowerPlatform
+            }
+            
+            // 최종 검증
+            if (!['instagram', 'threads', 'youtube', 'tiktok', 'other'].includes(mappedPlatform)) {
               errors.push(`Invalid platform: ${stringValue}`)
             } else {
               influencerData.platform = mappedPlatform
