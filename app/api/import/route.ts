@@ -202,26 +202,26 @@ export async function POST(request: NextRequest) {
       }
       
       // 첫 번째 행(0번 행)을 헤더로 직접 읽기
+      // cell.w (표시 값)를 우선 사용하고, 없으면 cell.v (원시 값) 사용
       headers = []
-      const headerCells: Array<{col: number, address: string, value: any, type: string}> = []
+      const headerCells: Array<{col: number, address: string, value: any, displayValue: string, type: string}> = []
       for (let col = range.s.c; col <= range.e.c; col++) {
         const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col })
         const cell = worksheet[cellAddress]
         if (cell) {
+          // cell.w (표시 텍스트)를 우선 사용, 없으면 cell.v (원시 값) 사용
+          const displayValue = cell.w !== undefined ? String(cell.w).trim() : (cell.v !== undefined ? String(cell.v).trim() : '')
+          
           headerCells.push({
             col,
             address: cellAddress,
             value: cell.v,
+            displayValue: displayValue,
             type: cell.t || 'unknown'
           })
-          // 셀 값이 있으면 문자열로 변환
-          if (cell.v !== undefined && cell.v !== null) {
-            const headerValue = String(cell.v).trim()
-            if (headerValue) {
-              headers.push(headerValue)
-            } else {
-              headers.push(`__EMPTY_${col}`)
-            }
+          
+          if (displayValue) {
+            headers.push(displayValue)
           } else {
             headers.push(`__EMPTY_${col}`)
           }
@@ -276,8 +276,9 @@ export async function POST(request: NextRequest) {
         validHeaders.forEach(({ header, index }) => {
           const cellAddress = XLSX.utils.encode_cell({ r: row, c: index })
           const cell = worksheet[cellAddress]
-          if (cell && cell.v !== undefined && cell.v !== null) {
-            const value = String(cell.v).trim()
+          if (cell) {
+            // cell.w (표시 텍스트)를 우선 사용, 없으면 cell.v (원시 값) 사용
+            const value = cell.w !== undefined ? String(cell.w).trim() : (cell.v !== undefined && cell.v !== null ? String(cell.v).trim() : '')
             rowData[header] = value
             if (value) {
               hasData = true
